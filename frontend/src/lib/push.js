@@ -23,12 +23,46 @@ export async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return null;
   try {
     const reg = await navigator.serviceWorker.register(SW_URL);
+    // Play the in-app ping when the SW receives a push while a page is open.
+    if (!window.__swSoundListener) {
+      window.__swSoundListener = true;
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data?.type === 'play-notification-sound') {
+          playNotificationSound();
+        }
+      });
+    }
     return reg;
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('SW register failed', e);
     return null;
   }
+}
+
+/** Short friendly two-tone "ping" (E5 → A5) via WebAudio. */
+export function playNotificationSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const tone = (freq, start, dur = 0.18) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + dur);
+    };
+    const t = ctx.currentTime;
+    tone(659.25, t);
+    tone(880.0, t + 0.15);
+    setTimeout(() => ctx.close().catch(() => {}), 700);
+  } catch (_) { /* ignore */ }
 }
 
 /**

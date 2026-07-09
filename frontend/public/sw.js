@@ -2,7 +2,7 @@
 /* eslint-disable no-restricted-globals */
 
 // Bumping CACHE_VERSION invalidates the precache on next reload.
-const CACHE_VERSION = 'hh-scanner-v1';
+const CACHE_VERSION = 'hh-scanner-v2';
 
 self.addEventListener('install', (event) => {
   // Activate the new SW immediately on next load
@@ -31,9 +31,18 @@ self.addEventListener('push', (event) => {
     tag: data.tag || 'apt-default',
     data: { url: data.url || '/' },
     requireInteraction: false,
-    vibrate: [120, 60, 120],
+    silent: false,
+    renotify: true,
+    vibrate: [120, 60, 120, 60, 200],
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil((async () => {
+    // If the app is open & focused, ask the page to play the in-app ping sound.
+    try {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      clients.forEach((c) => c.postMessage({ type: 'play-notification-sound' }));
+    } catch (_) { /* ignore */ }
+    await self.registration.showNotification(title, options);
+  })());
 });
 
 // Click → focus existing tab or open new one
