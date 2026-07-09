@@ -1,91 +1,126 @@
 {
-  "theme": "LIGHT",
-  "archetype": "4 (Swiss & High-Contrast)",
+  "theme": {
+    "mode": "toggle",
+    "style": "Modern Minimalism"
+  },
   "typography": {
-    "fonts": [
-      {
-        "name": "Cabinet Grotesk",
-        "url": "https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,500,700,400,900&display=swap",
-        "usage": "Headings"
-      },
-      {
-        "name": "IBM Plex Sans",
-        "url": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap",
-        "usage": "Body"
-      },
-      {
-        "name": "JetBrains Mono",
-        "url": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap",
-        "usage": "Data, Timestamps, Prices, Code"
-      }
-    ],
+    "headings": "Manrope",
+    "body": "DM Sans",
     "scale": {
-      "h1": "text-4xl tracking-tighter font-black uppercase",
-      "h2": "text-2xl tracking-tight font-bold",
-      "h3": "text-xl font-bold",
+      "h1": "text-4xl tracking-tight font-bold",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-semibold",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
       "body": "text-base leading-relaxed",
-      "mono_data": "text-sm font-mono tracking-tight",
-      "overline": "text-xs font-mono uppercase tracking-[0.2em]"
-    }
+      "labels": "text-xs uppercase tracking-[0.1em] font-semibold text-muted-foreground"
+    },
+    "instructions": "Use Manrope for all headings and DM Sans for body text. Remove existing brutalist fonts."
   },
   "colors": {
-    "background": "#FFFFFF",
-    "surface": "#F4F4F4",
-    "surface_hover": "#E5E5E5",
-    "border": "#050505",
-    "text_primary": "#050505",
-    "text_secondary": "#525252",
-    "accent_primary": "#002FA7",
-    "accent_alert": "#FF3B30",
-    "accent_success": "#00C950",
-    "accent_warning": "#FFCC00"
+    "primary": {
+      "hex": "#FF6F61",
+      "name": "Coral",
+      "usage": "Primary CTAs, active states, important badges, 'Scan Now' button."
+    },
+    "shadcn_variables": {
+      "light": {
+        "--background": "0 0% 98%",
+        "--foreground": "240 10% 3.9%",
+        "--card": "0 0% 100%",
+        "--card-foreground": "240 10% 3.9%",
+        "--popover": "0 0% 100%",
+        "--popover-foreground": "240 10% 3.9%",
+        "--primary": "10 100% 69%", 
+        "--primary-foreground": "0 0% 100%",
+        "--secondary": "240 4.8% 95.9%",
+        "--secondary-foreground": "240 5.9% 10%",
+        "--muted": "240 4.8% 95.9%",
+        "--muted-foreground": "240 3.8% 46.1%",
+        "--accent": "240 4.8% 95.9%",
+        "--accent-foreground": "240 5.9% 10%",
+        "--destructive": "0 84.2% 60.2%",
+        "--destructive-foreground": "0 0% 98%",
+        "--border": "240 5.9% 90%",
+        "--input": "240 5.9% 90%",
+        "--ring": "10 100% 69%",
+        "--radius": "1rem"
+      },
+      "dark": {
+        "--background": "240 10% 4%",
+        "--foreground": "0 0% 98%",
+        "--card": "240 10% 6%",
+        "--card-foreground": "0 0% 98%",
+        "--popover": "240 10% 6%",
+        "--popover-foreground": "0 0% 98%",
+        "--primary": "10 100% 69%",
+        "--primary-foreground": "0 0% 100%",
+        "--secondary": "240 3.7% 15.9%",
+        "--secondary-foreground": "0 0% 98%",
+        "--muted": "240 3.7% 15.9%",
+        "--muted-foreground": "240 5% 64.9%",
+        "--accent": "240 3.7% 15.9%",
+        "--accent-foreground": "0 0% 98%",
+        "--destructive": "0 62.8% 30.6%",
+        "--destructive-foreground": "0 0% 98%",
+        "--border": "240 3.7% 15.9%",
+        "--input": "240 3.7% 15.9%",
+        "--ring": "10 100% 69%"
+      }
+    }
   },
-  "spacing_and_layout": {
-    "strategy": "The 'Control Room' Grid",
-    "grid_classes": "grid grid-cols-1 md:grid-cols-4 lg:grid-cols-12 gap-px bg-[#050505] border-y border-[#050505]",
-    "padding": "p-6 md:p-8",
-    "component_style": "Grid Borders (The 'Technical' Look). Use 1px borders with border-collapse behavior. Surfaces are separated by stark 1px black borders instead of gaps to expose the 'skeleton'."
+  "grids": "Responsive bento/grid layout. Use gap-6 or gap-8 between major layout containers.",
+  "layouts": "Sidebar filters on the left (w-72) on desktop, main content on the right. Off-canvas drawer (shadcn Sheet) for mobile filters.",
+  "spacing": "Generous padding inside cards (p-6). Use p-8 or p-12 for page containers.",
+  "visual_enhancers": {
+    "shadows": "Soft shadows like `shadow-sm` or `shadow-[0_8px_30px_rgb(0,0,0,0.04)]` in light mode. Rely on subtle surface color elevation in dark mode.",
+    "radii": "Rounded corners `rounded-2xl` for cards, `rounded-full` or `rounded-xl` for buttons.",
+    "borders": "Use subtle 1px borders (`border-border/50`) instead of brutalist thick borders."
+  },
+  "motion": {
+    "transitions": "Use specific transition properties (`transition-colors`, `transition-transform`, `transition-opacity`, `duration-300`, `ease-out`). Do NOT use `transition-all`.",
+    "hover_states": "Interactive cards should lift slightly on hover (`hover:-translate-y-1`). Buttons should have a subtle brightness or shadow increase.",
+    "lists": "Implement staggered entrance animations for the apartment cards if possible, otherwise simple opacity fade-ins."
+  },
+  "accessibility": [
+    "Ensure contrast ratios meet APCA/WCAG standards. Text on primary colored backgrounds must remain fully legible.",
+    "All interactive elements and key informational points MUST include a `data-testid` attribute.",
+    "Provide clear focus states for keyboard accessibility (`focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none`)."
+  ],
+  "media": "Apartment images from the scraper should be displayed with `aspect-video` or `aspect-[4/3]`, `object-cover`, and have `rounded-t-2xl` or `rounded-lg` depending on card structure.",
+  "3d_libraries": "Do NOT use 3D libraries (like Three.js or Spline) for this dashboard. Focus on 2D data clarity and performance.",
+  "image_urls": {
+    "description": "No external placeholder images needed. Apartment images will be provided dynamically via the backend API.",
+    "urls": []
   },
   "components": {
-    "buttons": "Flat, sharp edges (rounded-none). Primary: bg-[#002FA7] text-white hover:bg-black hover:text-white transition-colors. Secondary: bg-white border border-[#050505] text-[#050505] hover:bg-[#F4F4F4].",
-    "cards": "Flat background, rounded-none, no soft shadows. For active state, use sharp hard offset shadow (e.g., 4px 4px 0px #050505) and 1px solid black border.",
-    "inputs": "Shadcn based, but strictly override to rounded-none, border-black ring-offset-white focus-visible:ring-2 focus-visible:ring-[#002FA7] focus-visible:border-black.",
-    "tables_lists": "Dense lists. Rows separated by 1px solid black border. Use JetBrains Mono for numbers/prices/rooms.",
-    "badges": "Square borders (rounded-none), text-xs font-mono uppercase, solid colors. e.g., bg-[#FF3B30] text-white for NEW."
+    "component_path": "/app/src/components/ui/",
+    "buttons": "Modern minimalist pill-shaped or softly rounded. Use subtle hover translation and active state scaling.",
+    "header_navbar": "Sticky header with glassmorphism (`backdrop-blur-xl bg-background/80`) and a solid 1px bottom border. Never use a fully transparent header.",
+    "toasts": "Use Sonner for toasts (real-time new apartment alerts). Positioned bottom-right. Rounded edges.",
+    "status_bar": "Clean, horizontally scrollable or flex-wrapped. Clear typography for the countdown timer.",
+    "charts": "Recharts styling: Use smooth lines (`type=\"monotone\"`), rounded bars, and hide distracting grid lines (`vertical={false}`). Tooltips should have rounded corners and blur backgrounds."
   },
-  "animations": {
-    "micro": "Instant or very fast transitions (duration-150). No bouncy or slow easing.",
-    "scanner": "A pulsing indicator (bg-[#00C950]) next to 'SCANNING ACTIVE'. Use a mono-spaced countdown timer ticking down from 3:00. Marquee of recent logs ('Checking Immomio... Found 0 new') in a retro-futuristic terminal bar at the bottom."
-  },
-  "media": {
-    "images": [
-      {
-        "url": "https://images.pexels.com/photos/32178051/pexels-photo-32178051.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "description": "Stylish open-plan living room in modern urban apartment",
-        "category": "apartment_placeholder_1"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1628592102751-ba83b0314276?crop=entropy&cs=srgb&fm=jpg&q=85",
-        "description": "modern apartment interior",
-        "category": "apartment_placeholder_2"
-      }
-    ]
-  },
-  "icons": {
-    "library": "@phosphor-icons/react",
-    "instructions": "Use 'bold' or 'fill' weights to match the heavy brutalist typography. Examples: Radar, Funnel, Clock, EnvelopeSimple, Buildings."
-  },
-  "testing": {
-    "instructions": "All interactive and key informational elements MUST include a 'data-testid' attribute. Format: kebab-case, role-based. e.g., 'data-testid=\"filter-price-input\"', 'data-testid=\"scan-status-indicator\"'."
-  },
+  "general_ui_ux_guidelines": [
+    "Prioritize optical alignment over strict geometric alignment.",
+    "Avoid generic 'centered everything'. Left-align dense data, forms, labels, and paragraph text.",
+    "Never use pure black (`#000000`) or pure gray. Neutral colors must be slightly tinted (the Slate palette handles this)."
+  ],
   "instructions_to_main_agent": [
-    "Build a real-time scanner dashboard for Immomio Hamburg.",
-    "The UI MUST follow a Swiss Brutalist, 'Control Room' aesthetic. Everything must have sharp edges (rounded-none), thick or crisp black borders (1px solid #050505).",
-    "Layout structure: A top navigation/status bar showing active scanning status and next scan timer (3 minutes countdown).",
-    "Sidebar / Filter Panel: Settings (Email config for maximnikityk@ukr.net, Resend integration toggles) and Search Filters (Min/Max Price, Room count).",
-    "Main Content Area: Displays a data-dense grid or feed/history of detected listings. Use the 'Grid Borders' component style to make the table look like an architect's blueprint.",
-    "Typography: Use Cabinet Grotesk for Headings. Use JetBrains Mono for data points like Price, Rooms, Square meters, and timestamps. Use IBM Plex Sans for general body text.",
-    "Do NOT use gradients, soft drop shadows, or rounded corners.",
-    "Write the code using standard .js / .jsx extensions. Do NOT use .tsx."
+    "1. Refactor all React (.js/.jsx) components from Swiss Brutalism to Modern Minimalism. Do not create .tsx files.",
+    "2. Remove brutalist utility classes: remove `rounded-none`, heavy borders (`border-4`, `border-black`), bold monospace typography, and hard shadows (`shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]`).",
+    "3. Replace with minimalist classes: `rounded-xl`, `rounded-2xl`, soft shadows (`shadow-sm`, `shadow-md`), and the new fonts (Manrope and DM Sans).",
+    "4. Update `tailwind.config.js` with the new HSL variables and font families.",
+    "5. Ensure the theme toggle functionality switches the `dark` class on the `html` or `body` element seamlessly.",
+    "6. Do not modify the underlying application logic (WebSocket connections, scrapers, PWA install prompt, Admin CRUD, filtering algorithms). The focus is purely on the UI/UX layer.",
+    "7. Apply `data-testid` attributes extensively to the redesigned UI elements.",
+    "8. Keep the existing German/Ukrainian copy intact."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Avoid the 'AI slop' aesthetic by ensuring creative, layered, and distinctive frontend designs.",
+    "Create depth through layered design elements with z-index hierarchy and glass-morphism effects (12-24px blur).",
+    "Do NOT apply universal transition (e.g., `transition-all`). Target specific properties.",
+    "Do NOT center align the app container in CSS.",
+    "Every interaction needs micro-animations - hover states, transitions, and focus states.",
+    "Use generous spacing (2-3x more than usual) to ensure the UI feels premium and uncluttered."
   ]
 }
