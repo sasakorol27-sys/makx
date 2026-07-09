@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import ThemeToggle from './ThemeToggle';
-import { Lock, EnvelopeSimple, Buildings, ArrowRight } from '@phosphor-icons/react';
+import { Lock, EnvelopeSimple, Buildings, ArrowRight, TelegramLogo, Crown } from '@phosphor-icons/react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -110,9 +110,28 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Zugang nur für autorisierte Benutzer
-          </p>
+          {/* Subscription CTA → Telegram */}
+          <div className="mt-5">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">oder</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <a
+              href="https://t.me/albina_pay"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group w-full h-12 rounded-xl bg-card border border-primary/40 text-foreground font-medium hover:bg-primary/5 hover:border-primary active:scale-[0.99] transition-[transform,background-color,border-color] duration-200 flex items-center justify-center gap-2.5 shadow-sm"
+              data-testid="buy-subscription-button"
+            >
+              <Crown weight="fill" size={18} className="text-primary" />
+              Abonnement kaufen
+              <TelegramLogo weight="fill" size={18} className="text-primary group-hover:translate-x-0.5 transition-transform duration-200" />
+            </a>
+            <p className="text-center text-xs text-muted-foreground mt-2">
+              Zugang über Telegram @albina_pay
+            </p>
+          </div>
         </div>
       </main>
     </div>
