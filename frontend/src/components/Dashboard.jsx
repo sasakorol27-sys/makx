@@ -6,6 +6,7 @@ import StatusBar from './StatusBar';
 import FilterPanel from './FilterPanel';
 import ApartmentList from './ApartmentList';
 import InstallPrompt from './InstallPrompt';
+import AccessExpired from './AccessExpired';
 import { Toaster } from './ui/sonner';
 import { toast } from 'sonner';
 import { Funnel, X as XIcon } from '@phosphor-icons/react';
@@ -210,6 +211,12 @@ export default function Dashboard() {
     await logout();
     navigate('/login');
   };
+
+  // Subscription/access gate — non-admin users whose access expired see the
+  // "Zugang geschlossen" screen instead of the dashboard.
+  if (user && user.role !== 'admin' && user.access_active === false) {
+    return <AccessExpired user={user} onLogout={handleLogout} />;
+  }
 
   return (
     <div className="min-h-screen bg-background">

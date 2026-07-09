@@ -66,3 +66,12 @@
   - Заокруглені картки (rounded-2xl), м'які тіні, glass-header, мікро-анімації
   - Перероблено: LoginPage, StatusBar, FilterPanel, ApartmentList, AdminPanel, ProfilePage, StatsPage, StatsChart, InstallPrompt, Dashboard, ProtectedRoute
   - Функціонал (WebSocket, скрапери, PWA, auth, фільтри) НЕ змінювався
+
+## CHANGELOG — Доступ/Підписка
+- **2026-07-09** Таймер доступу (підписка) для користувачів:
+  - Admin: поле "Zugang (Tage)" при створенні + кнопки "Setzen / ∞ / Sperren" на кожному користувачі
+  - Backend: user.access_expires_at; helpers is_access_active/access_info; endpoints PUT /admin/users/{id}/access та /access/unlimited
+  - Прострочені юзери: 403 на /apartments, НЕ отримують email/push сповіщень
+  - Frontend: екран "Zugang geschlossen" (AccessExpired.jsx) з кнопкою продовження → Telegram @albina_pay
+  - Admin завжди активний; порожній expiry = необмежено
+  - Перевірено curl: create(30д)→active, revoke(0)→403, restore(30)→200

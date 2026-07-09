@@ -73,6 +73,7 @@ class UserCreate(BaseModel):
     password: str
     name: Optional[str] = None
     role: str = "user"
+    access_days: Optional[int] = None
 
 class Apartment(BaseModel):
     id: str
@@ -145,6 +146,44 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+# ============= ACCESS / SUBSCRIPTION HELPERS =============
+
+def get_access_expiry(user: dict) -> Optional[datetime]:
+    """Return the user's access-expiry datetime (UTC aware), or None if unlimited."""
+    val = user.get("access_expires_at")
+    if not val:
+        return None
+    if isinstance(val, str):
+        try:
+            val = datetime.fromisoformat(val)
+        except ValueError:
+            return None
+    if val.tzinfo is None:
+        val = val.replace(tzinfo=timezone.utc)
+    return val
+
+def is_access_active(user: dict) -> bool:
+    """Admins always active. No expiry set => unlimited. Else compare to now."""
+    if user.get("role") == "admin":
+        return True
+    exp = get_access_expiry(user)
+    if exp is None:
+        return True
+    return datetime.now(timezone.utc) < exp
+
+def access_info(user: dict) -> dict:
+    exp = get_access_expiry(user)
+    active = is_access_active(user)
+    days_left = None
+    if exp is not None:
+        delta = exp - datetime.now(timezone.utc)
+        days_left = max(0, delta.days + (1 if delta.seconds > 0 and delta.days >= 0 else 0)) if active else 0
+    return {
+        "access_expires_at": exp.isoformat() if exp else None,
+        "access_active": active,
+        "access_days_left": days_left,
+    }
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     response.set_cookie(
@@ -1294,12 +1333,17 @@ async def scan_apartments():
                 "notification_email": {"$ne": None, "$ne": ""}
             }, {
                 "notification_email": 1, "min_price": 1, "max_price": 1, 
-                "min_rooms": 1, "max_rooms": 1, "_id": 0
+                "min_rooms": 1, "max_rooms": 1, "role": 1, "access_expires_at": 1, "_id": 0
             }).to_list(1000)
             
             for user_prefs in users_to_notify:
                 email_addr = user_prefs.get('notification_email')
                 if not email_addr:
+                    continue
+
+                # Skip users whose subscription/access has expired
+                if not is_access_active(user_prefs):
+                    logger.info(f"Skipping email for {email_addr} — access expired")
                     continue
                 
                 # Filter apartments based on user's personal preferences
@@ -1400,7 +1444,8 @@ async def login(credentials: UserLogin, response: Response):
         "id": user_id,
         "email": email,
         "name": user.get("name"),
-        "role": user.get("role", "user")
+        "role": user.get("role", "user"),
+        **access_info(user),
     }
 
 @auth_router.post("/logout")
@@ -1418,7 +1463,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "name": current_user.get("name"),
         "role": current_user.get("role", "user"),
         "notification_email": current_user.get("notification_email"),
-        "notifications_enabled": current_user.get("notifications_enabled", False)
+        "notifications_enabled": current_user.get("notifications_enabled", False),
+        **access_info(current_user),
     }
 
 # ============= PROFILE ENDPOINTS =============
@@ -1443,6 +1489,7 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
         "max_price": current_user.get("max_price"),
         "min_rooms": current_user.get("min_rooms"),
         "max_rooms": current_user.get("max_rooms"),
+        **access_info(current_user),
     }
 
 @api_router.put("/profile")
@@ -1474,7 +1521,8 @@ async def list_users(admin: dict = Depends(get_admin_user)):
         "email": u["email"],
         "name": u.get("name"),
         "role": u.get("role", "user"),
-        "created_at": u.get("created_at").isoformat() if u.get("created_at") else None
+        "created_at": u.get("created_at").isoformat() if u.get("created_at") else None,
+        **access_info(u),
     } for u in users]
 
 @api_router.post("/admin/users")
@@ -1483,21 +1531,62 @@ async def create_user(user_data: UserCreate, admin: dict = Depends(get_admin_use
     existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(status_code=400, detail="User with this email already exists")
-    
-    result = await db.users.insert_one({
+
+    doc = {
         "email": email,
         "password_hash": hash_password(user_data.password),
         "name": user_data.name,
         "role": user_data.role,
         "created_at": datetime.now(timezone.utc)
-    })
-    
+    }
+    if user_data.access_days and user_data.access_days > 0:
+        doc["access_expires_at"] = (
+            datetime.now(timezone.utc) + timedelta(days=user_data.access_days)
+        ).isoformat()
+
+    result = await db.users.insert_one(doc)
+
     return {
         "id": str(result.inserted_id),
         "email": email,
         "name": user_data.name,
-        "role": user_data.role
+        "role": user_data.role,
+        **access_info(doc),
     }
+
+
+class AccessUpdate(BaseModel):
+    days: int  # set access to expire N days from now; 0 or negative => revoke now
+
+
+@api_router.put("/admin/users/{user_id}/access")
+async def set_user_access(user_id: str, data: AccessUpdate, admin: dict = Depends(get_admin_user)):
+    """Set a user's access to expire `days` from NOW. days<=0 revokes immediately."""
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if data.days and data.days > 0:
+        expires = (datetime.now(timezone.utc) + timedelta(days=data.days)).isoformat()
+    else:
+        expires = datetime.now(timezone.utc).isoformat()  # expired now
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"access_expires_at": expires}}
+    )
+    user["access_expires_at"] = expires
+    return {"message": "Access updated", "id": user_id, **access_info(user)}
+
+
+@api_router.put("/admin/users/{user_id}/access/unlimited")
+async def set_user_unlimited(user_id: str, admin: dict = Depends(get_admin_user)):
+    """Remove the expiry entirely — unlimited access."""
+    result = await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$unset": {"access_expires_at": ""}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "Access set to unlimited", "id": user_id, "access_expires_at": None, "access_active": True}
 
 @api_router.delete("/admin/users/{user_id}")
 async def delete_user(user_id: str, admin: dict = Depends(get_admin_user)):
@@ -1636,6 +1725,8 @@ async def get_apartments(
     status: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
+    if not is_access_active(current_user):
+        raise HTTPException(status_code=403, detail="Zugang abgelaufen. Bitte verlängern Sie Ihr Abonnement.")
     query = {}
     
     if min_price is not None or max_price is not None:
@@ -1813,12 +1904,15 @@ async def send_push_notifications_for_new_apartments(new_apartments: List[dict])
         return
 
     users = await db.users.find({}, {
-        "_id": 1, "email": 1,
+        "_id": 1, "email": 1, "role": 1, "access_expires_at": 1,
         "min_price": 1, "max_price": 1, "min_rooms": 1, "max_rooms": 1,
     }).to_list(1000)
 
     for user in users:
         user_id = str(user['_id'])
+        # Skip users whose subscription/access has expired
+        if not is_access_active(user):
+            continue
         matched = [a for a in new_apartments if _apartment_matches_filters(a, user)]
         if not matched:
             continue

@@ -7,7 +7,7 @@ import { Label } from './ui/label';
 import ThemeToggle from './ThemeToggle';
 import {
   ArrowLeft, UserPlus, Trash, Plus, Link as LinkIcon, SignOut,
-  EnvelopeSimple, Lock, User
+  EnvelopeSimple, Lock, User, CalendarCheck, Infinity as InfinityIcon, Clock, Warning
 } from '@phosphor-icons/react';
 import { toast, Toaster } from 'sonner';
 
@@ -17,8 +17,9 @@ export default function AdminPanel() {
 
   const [users, setUsers] = useState([]);
   const [manualUrls, setManualUrls] = useState([]);
-  const [newUser, setNewUser] = useState({ email: '', password: '', name: '', role: 'user' });
+  const [newUser, setNewUser] = useState({ email: '', password: '', name: '', role: 'user', access_days: '' });
   const [newUrl, setNewUrl] = useState('');
+  const [accessDaysInput, setAccessDaysInput] = useState({});
 
   useEffect(() => {
     fetchUsers();
@@ -44,9 +45,48 @@ export default function AdminPanel() {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/api/admin/users', newUser);
+      const payload = { ...newUser };
+      payload.access_days = newUser.access_days === '' ? null : parseInt(newUser.access_days, 10);
+      await api.post('/api/admin/users', payload);
       toast.success('Benutzer erstellt');
-      setNewUser({ email: '', password: '', name: '', role: 'user' });
+      setNewUser({ email: '', password: '', name: '', role: 'user', access_days: '' });
+      fetchUsers();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Fehler');
+    }
+  };
+
+  const handleSetAccess = async (userId) => {
+    const days = parseInt(accessDaysInput[userId], 10);
+    if (Number.isNaN(days) || days <= 0) {
+      toast.error('Bitte eine gültige Anzahl Tage eingeben');
+      return;
+    }
+    try {
+      await api.put(`/api/admin/users/${userId}/access`, { days });
+      toast.success(`Zugang auf ${days} Tage gesetzt`);
+      setAccessDaysInput((p) => ({ ...p, [userId]: '' }));
+      fetchUsers();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Fehler');
+    }
+  };
+
+  const handleRevokeAccess = async (userId) => {
+    if (!window.confirm('Zugang sofort sperren?')) return;
+    try {
+      await api.put(`/api/admin/users/${userId}/access`, { days: 0 });
+      toast.success('Zugang gesperrt');
+      fetchUsers();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Fehler');
+    }
+  };
+
+  const handleUnlimitedAccess = async (userId) => {
+    try {
+      await api.put(`/api/admin/users/${userId}/access/unlimited`);
+      toast.success('Unbegrenzter Zugang gesetzt');
       fetchUsers();
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Fehler');
@@ -188,6 +228,15 @@ export default function AdminPanel() {
                     placeholder="Max Mustermann" className={inputCls} data-testid="new-user-name" />
                 </div>
               </div>
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1.5 block">Zugang (Tage)</Label>
+                <div className="relative">
+                  <CalendarCheck weight="bold" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input type="number" min="1" value={newUser.access_days}
+                    onChange={(e) => setNewUser({ ...newUser, access_days: e.target.value })}
+                    placeholder="z.B. 30 (leer = unbegrenzt)" className={inputCls} data-testid="new-user-access-days" />
+                </div>
+              </div>
               <button type="submit" className={primaryBtn} data-testid="create-user-submit">
                 <Plus weight="bold" size={16} />
                 Benutzer erstellen
@@ -196,25 +245,97 @@ export default function AdminPanel() {
           </form>
 
           <div className="space-y-2">
-            {users.map((u) => (
-              <div key={u.id} className="rounded-xl border border-border/60 bg-background p-4 flex items-center justify-between gap-3" data-testid={`user-row-${u.email}`}>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{u.email}</p>
-                  <p className="text-xs text-muted-foreground uppercase tracking-[0.08em] mt-0.5">
-                    {u.role} {u.name ? `· ${u.name}` : ''}
-                  </p>
+            {users.map((u) => {
+              const isAdmin = u.role === 'admin';
+              const unlimited = !u.access_expires_at;
+              const expired = u.access_active === false;
+              let statusLabel, statusCls, StatusIcon;
+              if (isAdmin || unlimited) {
+                statusLabel = isAdmin ? 'Admin · unbegrenzt' : 'Unbegrenzt';
+                statusCls = 'bg-secondary text-muted-foreground';
+                StatusIcon = InfinityIcon;
+              } else if (expired) {
+                statusLabel = 'Abgelaufen';
+                statusCls = 'bg-destructive/10 text-destructive';
+                StatusIcon = Warning;
+              } else {
+                statusLabel = `Noch ${u.access_days_left} Tag(e)`;
+                statusCls = 'bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]';
+                StatusIcon = Clock;
+              }
+              const expDate = u.access_expires_at
+                ? new Date(u.access_expires_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                : null;
+              return (
+                <div key={u.id} className="rounded-xl border border-border/60 bg-background p-4" data-testid={`user-row-${u.email}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{u.email}</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-[0.08em] mt-0.5">
+                        {u.role} {u.name ? `· ${u.name}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusCls}`} data-testid={`user-access-status-${u.email}`}>
+                        <StatusIcon weight="bold" size={13} />
+                        {statusLabel}
+                      </span>
+                      {u.id !== user?.id && (
+                        <button
+                          onClick={() => handleDeleteUser(u.id)}
+                          className="w-9 h-9 rounded-xl flex items-center justify-center text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors duration-200"
+                          data-testid={`delete-user-${u.email}`}
+                        >
+                          <Trash weight="bold" size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {!isAdmin && (
+                    <div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-2 flex-wrap">
+                      {expDate && (
+                        <span className="text-xs text-muted-foreground mr-1">Läuft ab: {expDate}</span>
+                      )}
+                      <div className="flex items-center gap-2 ml-auto">
+                        <Input
+                          type="number" min="1"
+                          value={accessDaysInput[u.id] || ''}
+                          onChange={(e) => setAccessDaysInput((p) => ({ ...p, [u.id]: e.target.value }))}
+                          placeholder="Tage"
+                          className="h-9 w-24 rounded-lg bg-card text-sm focus-visible:ring-2 focus-visible:ring-primary"
+                          data-testid={`access-days-input-${u.email}`}
+                        />
+                        <button
+                          onClick={() => handleSetAccess(u.id)}
+                          className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:brightness-105 transition-[filter] duration-200"
+                          data-testid={`set-access-${u.email}`}
+                        >
+                          Setzen
+                        </button>
+                        <button
+                          onClick={() => handleUnlimitedAccess(u.id)}
+                          className="px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:bg-muted transition-colors duration-200"
+                          data-testid={`unlimited-access-${u.email}`}
+                          title="Unbegrenzter Zugang"
+                        >
+                          ∞
+                        </button>
+                        {!expired && !unlimited && (
+                          <button
+                            onClick={() => handleRevokeAccess(u.id)}
+                            className="px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:bg-destructive hover:text-destructive-foreground transition-colors duration-200"
+                            data-testid={`revoke-access-${u.email}`}
+                          >
+                            Sperren
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {u.id !== user?.id && (
-                  <button
-                    onClick={() => handleDeleteUser(u.id)}
-                    className="w-9 h-9 rounded-xl flex items-center justify-center text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors duration-200"
-                    data-testid={`delete-user-${u.email}`}
-                  >
-                    <Trash weight="bold" size={16} />
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
