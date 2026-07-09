@@ -1,122 +1,109 @@
-import { Broadcast, Buildings, Gear, SignOut, User as UserIcon, ChartBar } from '@phosphor-icons/react';
+import { Broadcast, Buildings, Gear, SignOut, User as UserIcon, ChartBar, Sparkle } from '@phosphor-icons/react';
+import ThemeToggle from './ThemeToggle';
 
 export default function StatusBar({ scanStatus, onScanNow, user, onLogout, onAdminClick, onProfileClick, onStatsClick }) {
   const formatDateTime = (dateStr) => {
     if (!dateStr) return 'Nie';
     const date = new Date(dateStr);
     return date.toLocaleString('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
   };
 
+  const navBtn = "inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium hover:bg-muted hover:-translate-y-0.5 transition-[transform,background-color] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+
   return (
-    <div className="bg-white border-b border-[#050505]">
-      <div className="px-8 py-6">
+    <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border/60">
+      <div className="px-4 sm:px-8 py-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-4xl tracking-tighter font-black uppercase" style={{ fontFamily: 'Cabinet Grotesk' }}>
-              HAMBURG SCANNER
-            </h1>
-            <p className="text-sm text-[#525252] mt-1" style={{ fontFamily: 'IBM Plex Sans' }}>
-              Immomio.com Wohnungsüberwachung
-            </p>
+          {/* Brand + live status */}
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-sm">
+              <Buildings weight="bold" size={22} />
+            </div>
+            <div>
+              <h1 className="font-heading text-xl sm:text-2xl font-bold tracking-tight leading-none">
+                Hamburg Scanner
+              </h1>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className={`w-2 h-2 rounded-full ${scanStatus?.is_scanning ? 'bg-[hsl(var(--success))] animate-pulse' : 'bg-muted-foreground/50'}`} data-testid="scan-indicator" />
+                <span className="text-xs text-muted-foreground font-medium" data-testid="scan-status-text">
+                  {scanStatus?.is_scanning ? 'Scannt gerade…' : 'Bereit'}
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 px-4 py-2 border border-[#050505] rounded-none bg-[#F4F4F4]">
-              <div className={`w-2 h-2 rounded-full ${
-                scanStatus?.is_scanning 
-                  ? 'bg-[#00C950] animate-pulse' 
-                  : 'bg-[#525252]'
-              }`} data-testid="scan-indicator" />
-              <span className="text-xs font-mono uppercase tracking-[0.2em]" data-testid="scan-status-text">
-                {scanStatus?.is_scanning ? 'SCANNING' : 'BEREIT'}
-              </span>
+          {/* Metrics + actions */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-card border border-border/60">
+              <Buildings weight="bold" size={16} className="text-primary" />
+              <span className="text-sm font-semibold" data-testid="total-apartments">{scanStatus?.total_apartments || 0}</span>
+              <span className="text-xs text-muted-foreground">gesamt</span>
             </div>
 
-            <div className="flex items-center gap-2 px-4 py-2 bg-[#002FA7] text-white rounded-none">
-              <Buildings weight="bold" size={16} />
-              <span className="text-sm font-mono tracking-tight" data-testid="total-apartments">
-                {scanStatus?.total_apartments || 0}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 px-4 py-2 bg-[#FF3B30] text-white rounded-none">
-              <span className="text-xs font-mono uppercase tracking-[0.2em]" data-testid="new-apartments-count">
-                NEU (24H): {scanStatus?.new_apartments || 0}
-              </span>
+            <div className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary">
+              <Sparkle weight="fill" size={15} />
+              <span className="text-sm font-semibold" data-testid="new-apartments-count">{scanStatus?.new_apartments || 0}</span>
+              <span className="text-xs opacity-80">neu / 24h</span>
             </div>
 
             <button
               onClick={onScanNow}
               disabled={scanStatus?.is_scanning}
-              className="px-4 py-2 bg-[#002FA7] text-white rounded-none border border-[#050505] hover:bg-black transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:brightness-105 active:scale-[0.98] transition-[transform,filter] duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               data-testid="scan-now-button"
             >
               <Broadcast weight="bold" size={16} />
-              <span className="text-xs font-mono uppercase tracking-[0.2em]">SCAN JETZT</span>
+              <span className="hidden sm:inline">Scan jetzt</span>
             </button>
-            
+
             {user?.role === 'admin' && (
-              <button
-                onClick={onAdminClick}
-                className="px-4 py-2 bg-white text-[#050505] rounded-none border border-[#050505] hover:bg-[#F4F4F4] transition-colors duration-150 flex items-center gap-2"
-                data-testid="admin-panel-button"
-              >
+              <button onClick={onAdminClick} className={navBtn} data-testid="admin-panel-button">
                 <Gear weight="bold" size={16} />
-                <span className="text-xs font-mono uppercase tracking-[0.2em]">ADMIN</span>
+                <span className="hidden md:inline">Admin</span>
               </button>
             )}
-            
-            <button
-              onClick={onProfileClick}
-              className="px-4 py-2 bg-white text-[#050505] rounded-none border border-[#050505] hover:bg-[#F4F4F4] transition-colors duration-150 flex items-center gap-2"
-              data-testid="profile-button"
-            >
+
+            <button onClick={onProfileClick} className={`${navBtn} relative`} data-testid="profile-button">
               <UserIcon weight="bold" size={16} />
-              <span className="text-xs font-mono uppercase tracking-[0.2em]">PROFIL</span>
+              <span className="hidden md:inline">Profil</span>
               {user?.notifications_enabled && (
-                <span className="w-2 h-2 bg-[#00C950] rounded-full animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[hsl(var(--success))] rounded-full ring-2 ring-background" />
               )}
             </button>
 
-            <button
-              onClick={onStatsClick}
-              className="px-4 py-2 bg-white text-[#050505] rounded-none border border-[#050505] hover:bg-[#F4F4F4] transition-colors duration-150 flex items-center gap-2"
-              data-testid="stats-button"
-            >
+            <button onClick={onStatsClick} className={navBtn} data-testid="stats-button">
               <ChartBar weight="bold" size={16} />
-              <span className="text-xs font-mono uppercase tracking-[0.2em]">STATISTIK</span>
+              <span className="hidden md:inline">Statistik</span>
             </button>
-            
+
+            <ThemeToggle />
+
             <button
               onClick={onLogout}
-              className="px-4 py-2 bg-[#FF3B30] text-white rounded-none border border-[#050505] hover:bg-black transition-colors duration-150 flex items-center gap-2"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium hover:bg-destructive hover:text-destructive-foreground transition-colors duration-200"
               data-testid="logout-button"
             >
               <SignOut weight="bold" size={16} />
-              <span className="text-xs font-mono uppercase tracking-[0.2em]">LOGOUT</span>
+              <span className="hidden md:inline">Logout</span>
             </button>
           </div>
         </div>
 
         {scanStatus?.last_scan && (
-          <div className="mt-4 pt-4 border-t border-[#050505] flex items-center justify-between flex-wrap gap-2">
-            <p className="text-xs font-mono text-[#525252]" data-testid="last-scan-info">
-              Letzter Scan: {formatDateTime(scanStatus.last_scan)}
+          <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between flex-wrap gap-2">
+            <p className="text-xs text-muted-foreground" data-testid="last-scan-info">
+              Letzter Scan: <span className="text-foreground/80 font-medium">{formatDateTime(scanStatus.last_scan)}</span>
             </p>
             {user && (
-              <p className="text-xs font-mono text-[#525252]" data-testid="user-info">
-                Angemeldet als: {user.email} {user.role === 'admin' && '(ADMIN)'}
+              <p className="text-xs text-muted-foreground" data-testid="user-info">
+                Angemeldet als: <span className="text-foreground/80 font-medium">{user.email}</span> {user.role === 'admin' && '(Admin)'}
               </p>
             )}
           </div>
         )}
       </div>
-    </div>
+    </header>
   );
 }

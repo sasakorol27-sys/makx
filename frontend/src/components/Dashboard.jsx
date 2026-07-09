@@ -212,7 +212,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Toaster position="top-right" />
       <InstallPrompt />
 
@@ -226,26 +226,26 @@ export default function Dashboard() {
         onStatsClick={() => navigate('/stats')}
       />
 
-      <div className="border-t border-[#050505]">
+      <div>
         {/* Mobile filter toggle — sticky top, full-width, only on small screens */}
-        <div className="lg:hidden sticky top-0 z-30 bg-white border-b border-[#050505] px-4 py-3 flex items-center justify-between">
-          <span className="text-xs font-mono uppercase tracking-[0.2em] text-[#525252]">
-            {apartments.length} WOHNUNGEN
+        <div className="lg:hidden sticky top-[73px] z-30 bg-background/80 backdrop-blur-xl border-b border-border/60 px-4 py-3 flex items-center justify-between">
+          <span className="text-sm text-muted-foreground font-medium">
+            {apartments.length} Wohnungen
           </span>
           <button
             type="button"
             onClick={() => setMobileFilterOpen(true)}
             data-testid="mobile-filter-open"
-            className="px-3 py-2 border border-[#050505] bg-white text-[#050505] text-xs font-mono uppercase tracking-[0.18em] hover:bg-[#F4F4F4] transition-colors duration-150 flex items-center gap-2"
+            className="px-4 py-2 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium hover:bg-muted transition-colors duration-200 flex items-center gap-2"
           >
-            <Funnel weight="bold" size={14} />
-            FILTER & ANSICHT
+            <Funnel weight="bold" size={15} />
+            Filter & Ansicht
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 max-w-[1600px] mx-auto">
           {/* Desktop sidebar — hidden on mobile; mobile uses the drawer below */}
-          <div className="hidden lg:block lg:col-span-3 border-r border-[#050505]">
+          <div className="hidden lg:block lg:col-span-3 border-r border-border/60">
             <FilterPanel 
               filters={filters}
               setFilters={handleFiltersChange}
@@ -271,17 +271,17 @@ export default function Dashboard() {
             data-testid="mobile-filter-drawer"
           >
             <div
-              className="absolute inset-0 bg-black/50"
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
               onClick={() => setMobileFilterOpen(false)}
             />
-            <div className="relative ml-auto w-[88%] max-w-sm bg-white border-l border-[#050505] overflow-y-auto h-full">
-              <div className="sticky top-0 bg-[#050505] text-white px-4 py-3 flex items-center justify-between">
-                <span className="text-xs font-mono uppercase tracking-[0.2em]">FILTER & ANSICHT</span>
+            <div className="relative ml-auto w-[88%] max-w-sm bg-background overflow-y-auto h-full shadow-2xl">
+              <div className="sticky top-0 bg-background/90 backdrop-blur-xl border-b border-border/60 px-5 py-4 flex items-center justify-between">
+                <span className="font-heading font-semibold">Filter & Ansicht</span>
                 <button
                   type="button"
                   onClick={() => setMobileFilterOpen(false)}
                   data-testid="mobile-filter-close"
-                  className="p-1 hover:bg-white/10 transition-colors duration-150"
+                  className="p-2 rounded-xl hover:bg-secondary transition-colors duration-200"
                   aria-label="Schließen"
                 >
                   <XIcon weight="bold" size={20} />

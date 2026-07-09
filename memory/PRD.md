@@ -57,3 +57,12 @@
 - [P2] Графіки статистики (квартири по днях)
 - [P2] Push notifications через Web Push API
 - [P2] Filter by district (multi-select)
+
+## CHANGELOG — Design
+- **2026-07-09** Повний редизайн UI зі "швейцарського бруталізму" → сучасний мінімалізм:
+  - Палітра: нейтральний Slate + акцент Coral (#FF6F61), shadcn CSS-variables
+  - Світла + темна тема з перемикачем (ThemeContext + ThemeToggle, localStorage)
+  - Шрифти: Manrope (заголовки) + DM Sans (текст)
+  - Заокруглені картки (rounded-2xl), м'які тіні, glass-header, мікро-анімації
+  - Перероблено: LoginPage, StatusBar, FilterPanel, ApartmentList, AdminPanel, ProfilePage, StatsPage, StatsChart, InstallPrompt, Dashboard, ProtectedRoute
+  - Функціонал (WebSocket, скрапери, PWA, auth, фільтри) НЕ змінювався

@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react';
-import { DownloadSimple, X } from '@phosphor-icons/react';
+import { DownloadSimple, X, Buildings } from '@phosphor-icons/react';
 
-/**
- * "Add to home screen" banner.
- * - Android / desktop Chrome / Edge: catches the `beforeinstallprompt` event
- *   and triggers it on click.
- * - iOS Safari: shows manual instructions (no programmatic install API).
- * - Hidden when the app is already running as a PWA (standalone display) or
- *   the user dismissed it (stored in localStorage).
- */
 const STORAGE_KEY = 'pwa_install_dismissed';
 
 function isStandalone() {
@@ -33,7 +25,6 @@ export default function InstallPrompt() {
     if (isStandalone()) return;
     if (localStorage.getItem(STORAGE_KEY) === '1') return;
 
-    // Android / Chrome / Edge: native install prompt
     const onBeforeInstall = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -41,8 +32,6 @@ export default function InstallPrompt() {
     };
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
 
-    // iOS Safari: no event, show manual hint after a short delay so it isn't
-    // intrusive on first paint. Only on actual iOS, not desktop.
     if (isIos()) {
       const t = setTimeout(() => setVisible(true), 4000);
       return () => {
@@ -67,39 +56,34 @@ export default function InstallPrompt() {
       const { outcome } = await deferredPrompt.userChoice;
       setDeferredPrompt(null);
       setVisible(false);
-      if (outcome === 'accepted') {
-        localStorage.setItem(STORAGE_KEY, '1');
-      }
+      if (outcome === 'accepted') localStorage.setItem(STORAGE_KEY, '1');
       return;
     }
-    // iOS path: open instructions
     setShowIosHint(true);
   };
 
   return (
     <div
-      className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-96 border border-[#050505] bg-[#002FA7] text-white shadow-[8px_8px_0_rgba(0,0,0,0.6)]"
+      className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-96 rounded-2xl bg-card border border-border/60 shadow-[0_12px_40px_rgba(0,0,0,0.18)] animate-enter"
       role="dialog"
       data-testid="install-prompt"
     >
       <div className="flex items-start gap-3 p-4">
-        <div className="flex-shrink-0 w-12 h-12 bg-white text-[#002FA7] border border-[#050505] flex items-center justify-center font-black text-2xl" style={{ fontFamily: 'Cabinet Grotesk' }}>
-          H
+        <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
+          <Buildings weight="bold" size={22} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-sm uppercase tracking-tight" style={{ fontFamily: 'Cabinet Grotesk' }}>
-            APP INSTALLIEREN
-          </p>
-          <p className="text-xs mt-1 leading-snug opacity-90">
+          <p className="font-heading font-semibold text-sm">App installieren</p>
+          <p className="text-xs text-muted-foreground mt-1 leading-snug">
             Direkt vom Startbildschirm öffnen — schneller Zugriff & Push-Benachrichtigungen.
           </p>
           {showIosHint && (
-            <div className="mt-3 bg-white text-[#050505] p-3 border border-[#050505] text-xs leading-relaxed">
-              <p className="font-bold mb-1">iOS Safari:</p>
-              <ol className="list-decimal pl-4 space-y-0.5">
-                <li>Auf <span className="font-mono">Teilen</span>-Symbol tippen (↑)</li>
-                <li><span className="font-mono">„Zum Home-Bildschirm“</span> auswählen</li>
-                <li>Bestätigen mit <span className="font-mono">„Hinzufügen“</span></li>
+            <div className="mt-3 rounded-xl bg-secondary/70 border border-border/60 p-3 text-xs leading-relaxed">
+              <p className="font-semibold mb-1">iOS Safari:</p>
+              <ol className="list-decimal pl-4 space-y-0.5 text-muted-foreground">
+                <li>Auf <span className="font-medium text-foreground">Teilen</span>-Symbol tippen (↑)</li>
+                <li><span className="font-medium text-foreground">„Zum Home-Bildschirm"</span> auswählen</li>
+                <li>Bestätigen mit <span className="font-medium text-foreground">„Hinzufügen"</span></li>
               </ol>
             </div>
           )}
@@ -108,27 +92,27 @@ export default function InstallPrompt() {
               <button
                 type="button"
                 onClick={install}
-                className="px-3 py-2 bg-[#FFCB05] text-[#050505] border border-[#050505] text-xs font-mono uppercase tracking-[0.18em] hover:bg-white transition-colors duration-150 flex items-center gap-1"
+                className="px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:brightness-105 active:scale-[0.98] transition-[transform,filter] duration-200 flex items-center gap-1.5"
                 data-testid="install-prompt-install"
               >
                 <DownloadSimple weight="bold" size={14} />
-                INSTALLIEREN
+                Installieren
               </button>
             )}
             <button
               type="button"
               onClick={dismiss}
-              className="px-3 py-2 bg-transparent text-white border border-white/40 text-xs font-mono uppercase tracking-[0.18em] hover:bg-white/10 transition-colors duration-150"
+              className="px-3.5 py-2 rounded-xl bg-secondary text-secondary-foreground text-xs font-medium hover:bg-muted transition-colors duration-200"
               data-testid="install-prompt-dismiss"
             >
-              SPÄTER
+              Später
             </button>
           </div>
         </div>
         <button
           type="button"
           onClick={dismiss}
-          className="p-1 hover:bg-white/10 transition-colors duration-150 flex-shrink-0"
+          className="p-1.5 rounded-lg hover:bg-secondary transition-colors duration-200 flex-shrink-0"
           aria-label="Schließen"
         >
           <X weight="bold" size={16} />

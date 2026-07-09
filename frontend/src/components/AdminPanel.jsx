@@ -4,34 +4,27 @@ import { api, formatApiErrorDetail } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { 
-  ArrowLeft, 
-  UserPlus, 
-  Trash, 
-  Plus, 
-  Link as LinkIcon, 
-  SignOut,
-  EnvelopeSimple,
-  Lock,
-  User
+import ThemeToggle from './ThemeToggle';
+import {
+  ArrowLeft, UserPlus, Trash, Plus, Link as LinkIcon, SignOut,
+  EnvelopeSimple, Lock, User
 } from '@phosphor-icons/react';
 import { toast, Toaster } from 'sonner';
 
 export default function AdminPanel() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  
+
   const [users, setUsers] = useState([]);
   const [manualUrls, setManualUrls] = useState([]);
-  
   const [newUser, setNewUser] = useState({ email: '', password: '', name: '', role: 'user' });
   const [newUrl, setNewUrl] = useState('');
-  
+
   useEffect(() => {
     fetchUsers();
     fetchManualUrls();
   }, []);
-  
+
   const fetchUsers = async () => {
     try {
       const { data } = await api.get('/api/admin/users');
@@ -40,16 +33,14 @@ export default function AdminPanel() {
       toast.error('Fehler beim Laden der Benutzer');
     }
   };
-  
+
   const fetchManualUrls = async () => {
     try {
       const { data } = await api.get('/api/admin/manual-urls');
       setManualUrls(data);
-    } catch (e) {
-      // silent
-    }
+    } catch (e) { /* silent */ }
   };
-  
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
@@ -61,7 +52,7 @@ export default function AdminPanel() {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Fehler');
     }
   };
-  
+
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Benutzer wirklich löschen?')) return;
     try {
@@ -72,14 +63,13 @@ export default function AdminPanel() {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Fehler');
     }
   };
-  
+
   const handleAddUrl = async (e) => {
     e.preventDefault();
     const loadingToast = toast.loading('URL wird hinzugefügt & Wohnung wird geladen...');
     try {
       const { data } = await api.post('/api/admin/manual-urls', { url: newUrl });
       toast.dismiss(loadingToast);
-
       const count = data?.apartments_count ?? 0;
       if (data?.type === 'homepage_token') {
         if (count > 0) {
@@ -97,7 +87,6 @@ export default function AdminPanel() {
       } else {
         toast.success('URL hinzugefügt');
       }
-
       setNewUrl('');
       fetchManualUrls();
     } catch (err) {
@@ -105,7 +94,7 @@ export default function AdminPanel() {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Fehler');
     }
   };
-  
+
   const handleRemoveUrl = async (url) => {
     try {
       await api.delete('/api/admin/manual-urls', { data: { url } });
@@ -115,139 +104,110 @@ export default function AdminPanel() {
       toast.error('Fehler beim Entfernen');
     }
   };
-  
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
-  
+
+  const cardCls = "bg-card border border-border/60 rounded-2xl shadow-sm";
+  const primaryBtn = "w-full h-11 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:brightness-105 active:scale-[0.99] transition-[transform,filter] duration-200 flex items-center justify-center gap-2 shadow-sm";
+  const inputCls = "h-11 rounded-xl bg-background pl-10 focus-visible:ring-2 focus-visible:ring-primary";
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Toaster position="top-right" />
-      
+
       {/* Header */}
-      <div className="border-b border-[#050505] bg-white">
-        <div className="px-8 py-6 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border/60">
+        <div className="px-4 sm:px-8 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/')}
-              className="p-2 border border-[#050505] hover:bg-[#F4F4F4] transition-colors duration-150"
+              className="w-10 h-10 rounded-xl bg-secondary text-secondary-foreground flex items-center justify-center hover:bg-muted transition-colors duration-200"
               data-testid="back-to-dashboard"
             >
               <ArrowLeft weight="bold" size={20} />
             </button>
             <div>
-              <h1 className="text-3xl tracking-tighter font-black uppercase" style={{ fontFamily: 'Cabinet Grotesk' }}>
-                ADMIN PANEL
-              </h1>
-              <p className="text-xs font-mono uppercase tracking-[0.2em] text-[#525252]">
-                BENUTZER & URLS VERWALTEN
-              </p>
+              <h1 className="font-heading text-xl sm:text-2xl font-bold tracking-tight">Admin Panel</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">Benutzer & URLs verwalten</p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <span className="text-xs font-mono uppercase tracking-[0.2em]">
-              {user?.email}
-            </span>
+
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline text-sm text-muted-foreground">{user?.email}</span>
+            <ThemeToggle />
             <button
               onClick={handleLogout}
-              className="px-4 py-2 bg-[#FF3B30] text-white border border-[#050505] hover:bg-black transition-colors duration-150 flex items-center gap-2"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium hover:bg-destructive hover:text-destructive-foreground transition-colors duration-200"
               data-testid="logout-button"
             >
               <SignOut weight="bold" size={16} />
-              <span className="text-xs font-mono uppercase tracking-[0.2em]">LOGOUT</span>
+              <span className="hidden md:inline">Logout</span>
             </button>
           </div>
         </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-[#050505]">
+      </header>
+
+      <div className="max-w-6xl mx-auto p-4 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Users Management */}
-        <div className="bg-white p-6 lg:p-8">
-          <h2 className="text-2xl tracking-tight font-bold mb-6 flex items-center gap-2" style={{ fontFamily: 'Cabinet Grotesk' }}>
-            <UserPlus weight="bold" size={24} />
-            BENUTZER VERWALTUNG
+        <section className={`${cardCls} p-6`}>
+          <h2 className="font-heading text-xl font-semibold mb-5 flex items-center gap-2">
+            <UserPlus weight="bold" size={22} className="text-primary" />
+            Benutzerverwaltung
           </h2>
-          
-          {/* Create User Form */}
-          <form onSubmit={handleCreateUser} className="border border-[#050505] bg-[#F4F4F4] p-6 mb-6" data-testid="create-user-form">
-            <h3 className="text-sm font-mono uppercase tracking-[0.2em] mb-4">NEUER BENUTZER</h3>
-            
+
+          <form onSubmit={handleCreateUser} className="rounded-xl bg-secondary/60 border border-border/60 p-5 mb-6" data-testid="create-user-form">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-4">Neuer Benutzer</h3>
             <div className="space-y-3">
               <div>
-                <Label className="text-xs font-mono uppercase tracking-[0.2em]">EMAIL</Label>
-                <div className="relative mt-1">
-                  <EnvelopeSimple weight="bold" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252]" />
-                  <Input
-                    type="email"
-                    required
-                    value={newUser.email}
+                <Label className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1.5 block">Email</Label>
+                <div className="relative">
+                  <EnvelopeSimple weight="bold" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input type="email" required value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                    placeholder="client@example.com"
-                    className="rounded-none border-[#050505] bg-white pl-10 font-mono"
-                    data-testid="new-user-email"
-                  />
+                    placeholder="client@example.com" className={inputCls} data-testid="new-user-email" />
                 </div>
               </div>
-              
               <div>
-                <Label className="text-xs font-mono uppercase tracking-[0.2em]">PASSWORT</Label>
-                <div className="relative mt-1">
-                  <Lock weight="bold" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252]" />
-                  <Input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={newUser.password}
+                <Label className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1.5 block">Passwort</Label>
+                <div className="relative">
+                  <Lock weight="bold" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input type="password" required minLength={6} value={newUser.password}
                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    placeholder="mindestens 6 Zeichen"
-                    className="rounded-none border-[#050505] bg-white pl-10 font-mono"
-                    data-testid="new-user-password"
-                  />
+                    placeholder="mindestens 6 Zeichen" className={inputCls} data-testid="new-user-password" />
                 </div>
               </div>
-              
               <div>
-                <Label className="text-xs font-mono uppercase tracking-[0.2em]">NAME (OPTIONAL)</Label>
-                <div className="relative mt-1">
-                  <User weight="bold" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252]" />
-                  <Input
-                    type="text"
-                    value={newUser.name}
+                <Label className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1.5 block">Name (optional)</Label>
+                <div className="relative">
+                  <User weight="bold" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input type="text" value={newUser.name}
                     onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                    placeholder="Max Mustermann"
-                    className="rounded-none border-[#050505] bg-white pl-10 font-mono"
-                    data-testid="new-user-name"
-                  />
+                    placeholder="Max Mustermann" className={inputCls} data-testid="new-user-name" />
                 </div>
               </div>
-              
-              <button
-                type="submit"
-                className="w-full px-4 py-2 bg-[#002FA7] text-white border border-[#050505] hover:bg-black transition-colors duration-150 flex items-center justify-center gap-2"
-                data-testid="create-user-submit"
-              >
+              <button type="submit" className={primaryBtn} data-testid="create-user-submit">
                 <Plus weight="bold" size={16} />
-                <span className="text-xs font-mono uppercase tracking-[0.2em]">BENUTZER ERSTELLEN</span>
+                Benutzer erstellen
               </button>
             </div>
           </form>
-          
-          {/* Users List */}
-          <div className="space-y-px bg-[#050505] border border-[#050505]">
+
+          <div className="space-y-2">
             {users.map((u) => (
-              <div key={u.id} className="bg-white p-4 flex items-center justify-between" data-testid={`user-row-${u.email}`}>
-                <div>
-                  <p className="font-mono text-sm">{u.email}</p>
-                  <p className="text-xs text-[#525252] font-mono uppercase tracking-[0.2em] mt-1">
+              <div key={u.id} className="rounded-xl border border-border/60 bg-background p-4 flex items-center justify-between gap-3" data-testid={`user-row-${u.email}`}>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{u.email}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-[0.08em] mt-0.5">
                     {u.role} {u.name ? `· ${u.name}` : ''}
                   </p>
                 </div>
                 {u.id !== user?.id && (
                   <button
                     onClick={() => handleDeleteUser(u.id)}
-                    className="px-3 py-2 bg-white border border-[#FF3B30] text-[#FF3B30] hover:bg-[#FF3B30] hover:text-white transition-colors duration-150"
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors duration-200"
                     data-testid={`delete-user-${u.email}`}
                   >
                     <Trash weight="bold" size={16} />
@@ -256,77 +216,59 @@ export default function AdminPanel() {
               </div>
             ))}
           </div>
-        </div>
-        
+        </section>
+
         {/* Manual URLs Management */}
-        <div className="bg-white p-6 lg:p-8">
-          <h2 className="text-2xl tracking-tight font-bold mb-6 flex items-center gap-2" style={{ fontFamily: 'Cabinet Grotesk' }}>
-            <LinkIcon weight="bold" size={24} />
-            MANUELLE URLS
+        <section className={`${cardCls} p-6`}>
+          <h2 className="font-heading text-xl font-semibold mb-4 flex items-center gap-2">
+            <LinkIcon weight="bold" size={22} className="text-primary" />
+            Manuelle URLs
           </h2>
-          
-          <p className="text-xs text-[#525252] mb-4">
-            Fügen Sie immomio URLs manuell hinzu — der Scanner überwacht sie automatisch.<br/>
-          <strong>Zwei Typen möglich:</strong><br/>
-            • <code className="font-mono">tenant.immomio.com/apply/...</code> — Einzelne Wohnung<br/>
-            • <code className="font-mono">homepage.immomio.com/de/properties?token=...</code> — Vermieter-Pool (alle Wohnungen, alle 3 Min auto-aktualisiert)
-          </p>
-          
-          {/* Add URL Form */}
-          <form onSubmit={handleAddUrl} className="border border-[#050505] bg-[#F4F4F4] p-6 mb-6" data-testid="add-url-form">
-            <h3 className="text-sm font-mono uppercase tracking-[0.2em] mb-4">URL HINZUFÜGEN</h3>
-            
+
+          <div className="text-sm text-muted-foreground mb-4 leading-relaxed">
+            Fügen Sie immomio URLs manuell hinzu — der Scanner überwacht sie automatisch.<br />
+            <strong className="text-foreground/80">Zwei Typen möglich:</strong><br />
+            • <code className="text-xs bg-secondary px-1.5 py-0.5 rounded">tenant.immomio.com/apply/...</code> — Einzelne Wohnung<br />
+            • <code className="text-xs bg-secondary px-1.5 py-0.5 rounded">homepage.immomio.com/de/properties?token=...</code> — Vermieter-Pool
+          </div>
+
+          <form onSubmit={handleAddUrl} className="rounded-xl bg-secondary/60 border border-border/60 p-5 mb-6" data-testid="add-url-form">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-4">URL hinzufügen</h3>
             <div className="space-y-3">
-              <Input
-                type="url"
-                required
-                value={newUrl}
+              <Input type="url" required value={newUrl}
                 onChange={(e) => setNewUrl(e.target.value)}
-                placeholder="tenant.immomio.com/apply/... oder homepage.immomio.com/de/properties?token=..."
-
-
-                className="rounded-none border-[#050505] bg-white font-mono text-xs"
-                data-testid="new-url-input"
-              />
-              
-              <button
-                type="submit"
-                className="w-full px-4 py-2 bg-[#002FA7] text-white border border-[#050505] hover:bg-black transition-colors duration-150 flex items-center justify-center gap-2"
-                data-testid="add-url-submit"
-              >
+                placeholder="tenant.immomio.com/apply/... oder homepage.immomio.com/..."
+                className="h-11 rounded-xl bg-background text-sm focus-visible:ring-2 focus-visible:ring-primary"
+                data-testid="new-url-input" />
+              <button type="submit" className={primaryBtn} data-testid="add-url-submit">
                 <Plus weight="bold" size={16} />
-                <span className="text-xs font-mono uppercase tracking-[0.2em]">URL HINZUFÜGEN</span>
+                URL hinzufügen
               </button>
             </div>
           </form>
-          
-          {/* URLs List */}
-          <div className="space-y-px bg-[#050505] border border-[#050505]">
+
+          <div className="space-y-2">
             {manualUrls.length === 0 ? (
-              <div className="bg-white p-6 text-center">
-                <p className="text-sm font-mono text-[#525252]">Keine manuellen URLs</p>
+              <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                <p className="text-sm text-muted-foreground">Keine manuellen URLs</p>
               </div>
             ) : (
               manualUrls.map((item, idx) => (
-                <div key={idx} className="bg-white p-4 flex items-center justify-between gap-4" data-testid={`url-row-${idx}`}>
+                <div key={idx} className="rounded-xl border border-border/60 bg-background p-4 flex items-center justify-between gap-3" data-testid={`url-row-${idx}`}>
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     {item.type === 'homepage_token' && (
-                      <span className="px-2 py-1 bg-[#002FA7] text-white text-[10px] font-mono uppercase tracking-wider flex-shrink-0">
-                        POOL
+                      <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider flex-shrink-0">
+                        Pool
                       </span>
                     )}
-                    <a 
-                      href={item.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="font-mono text-xs text-[#002FA7] hover:underline break-all"
-                    >
+                    <a href={item.url} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline break-all">
                       {item.url}
                     </a>
                   </div>
                   <button
                     onClick={() => handleRemoveUrl(item.url)}
-                    className="px-3 py-2 bg-white border border-[#FF3B30] text-[#FF3B30] hover:bg-[#FF3B30] hover:text-white transition-colors duration-150 flex-shrink-0"
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors duration-200 flex-shrink-0"
                     data-testid={`delete-url-${idx}`}
                   >
                     <Trash weight="bold" size={16} />
@@ -335,7 +277,7 @@ export default function AdminPanel() {
               ))
             )}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
