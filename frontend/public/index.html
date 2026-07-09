@@ -3,9 +3,10 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#002FA7" />
+        <meta name="theme-color" content="#FF6F61" />
         <meta name="description" content="Hamburg Apartment Scanner — automatischer Wohnungs-Scanner für SAGA, Vonovia, Immomio u.a." />
         <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -16,6 +17,18 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />
         <title>Hamburg Scanner</title>
+        <script>
+          // Capture the PWA install prompt as early as possible so React never
+          // misses the event due to mount timing. InstallPrompt reads this.
+          window.addEventListener('beforeinstallprompt', function (e) {
+            e.preventDefault();
+            window.__deferredInstallPrompt = e;
+            window.dispatchEvent(new Event('pwa-installable'));
+          });
+          window.addEventListener('appinstalled', function () {
+            window.__deferredInstallPrompt = null;
+          });
+        </script>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
         <style>

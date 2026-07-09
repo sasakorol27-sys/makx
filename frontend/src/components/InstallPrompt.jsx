@@ -25,21 +25,39 @@ export default function InstallPrompt() {
     if (isStandalone()) return;
     if (localStorage.getItem(STORAGE_KEY) === '1') return;
 
+    // If the early (index.html) listener already captured the event, use it.
+    if (window.__deferredInstallPrompt) {
+      setDeferredPrompt(window.__deferredInstallPrompt);
+      setVisible(true);
+    }
+
+    // Android / Chrome / Edge: native install prompt (in case it fires later)
     const onBeforeInstall = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      window.__deferredInstallPrompt = e;
       setVisible(true);
     };
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    // Signalled by the early listener in index.html
+    const onInstallable = () => {
+      if (window.__deferredInstallPrompt) {
+        setDeferredPrompt(window.__deferredInstallPrompt);
+        setVisible(true);
+      }
+    };
+    window.addEventListener('pwa-installable', onInstallable);
 
+    // iOS Safari: no event, show manual hint after a short delay.
+    let iosTimer;
     if (isIos()) {
-      const t = setTimeout(() => setVisible(true), 4000);
-      return () => {
-        clearTimeout(t);
-        window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      };
+      iosTimer = setTimeout(() => setVisible(true), 4000);
     }
-    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+    return () => {
+      if (iosTimer) clearTimeout(iosTimer);
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.removeEventListener('pwa-installable', onInstallable);
+    };
   }, []);
 
   if (!visible) return null;
