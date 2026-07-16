@@ -1267,6 +1267,212 @@ async def scrape_immomio_hamburg():
     return apartments
 
 
+# ============= NOTIFICATIONS (shared) =============
+
+async def notify_new_apartments(new_apartments: List[dict]):
+    """Send email (filtered per user) + web-push for a batch of new apartments."""
+    if not new_apartments:
+        return
+    # ---- Email ----
+    if resend.api_key:
+        users_to_notify = await db.users.find({
+            "notifications_enabled": True,
+            "notification_email": {"$ne": None, "$ne": ""}
+        }, {
+            "notification_email": 1, "min_price": 1, "max_price": 1,
+            "min_rooms": 1, "max_rooms": 1, "role": 1, "access_expires_at": 1, "_id": 0
+        }).to_list(1000)
+
+        for user_prefs in users_to_notify:
+            email_addr = user_prefs.get('notification_email')
+            if not email_addr:
+                continue
+            if not is_access_active(user_prefs):
+                logger.info(f"Skipping email for {email_addr} — access expired")
+                continue
+
+            user_apts = []
+            for apt in new_apartments:
+                if user_prefs.get('min_price') is not None and (apt.get('price') is None or apt['price'] < user_prefs['min_price']):
+                    continue
+                if user_prefs.get('max_price') is not None and (apt.get('price') is None or apt['price'] > user_prefs['max_price']):
+                    continue
+                if user_prefs.get('min_rooms') is not None and (apt.get('rooms') is None or apt['rooms'] < user_prefs['min_rooms']):
+                    continue
+                if user_prefs.get('max_rooms') is not None and (apt.get('rooms') is None or apt['rooms'] > user_prefs['max_rooms']):
+                    continue
+                user_apts.append(apt)
+
+            if not user_apts:
+                continue
+
+            try:
+                html_content = f"<h2>🏠 {len(user_apts)} neue Wohnungen in Hamburg gefunden!</h2><ul>"
+                for apt in user_apts:
+                    html_content += f"<li><strong>{apt['title']}</strong><br>"
+                    if apt.get('price'):
+                        html_content += f"Preis: €{apt['price']:.2f}<br>"
+                    if apt.get('rooms'):
+                        html_content += f"Zimmer: {apt['rooms']}<br>"
+                    if apt.get('area'):
+                        html_content += f"Fläche: {apt['area']}m²<br>"
+                    if apt.get('address'):
+                        html_content += f"Adresse: {apt['address']}<br>"
+                    if apt.get('landlord'):
+                        html_content += f"Vermieter: {apt['landlord']}<br>"
+                    html_content += f"<a href='{apt['url']}'>Zur Anzeige</a></li><br>"
+                html_content += "</ul>"
+                params = {
+                    "from": SENDER_EMAIL,
+                    "to": [email_addr],
+                    "subject": f"🏠 {len(user_apts)} neue Wohnungen in Hamburg",
+                    "html": html_content
+                }
+                await asyncio.to_thread(resend.Emails.send, params)
+                logger.info(f"Email sent to {email_addr} with {len(user_apts)} filtered apartments")
+            except Exception as e:
+                logger.error(f"Failed to send email to {email_addr}: {str(e)}")
+
+    # ---- Web push ----
+    try:
+        await send_push_notifications_for_new_apartments(new_apartments)
+    except Exception as e:
+        logger.error(f"Push notifications failed: {e}")
+
+
+# ============= SCRAPERAPI + IMMOWELT PROFILE SCRAPER =============
+
+SCRAPERAPI_ENDPOINT = "https://api.scraperapi.com/"
+# Listing type keywords that are NOT apartments (skip these on immowelt profiles)
+_COMMERCIAL_KEYWORDS = (
+    'bürofläche', 'büro', 'gewerbe', 'restaurant', 'laden', 'ladenfläche', 'stellplatz',
+    'garage', 'halle', 'praxis', 'gastronomie', 'lager', 'grundstück', 'einzelhandel',
+    'produktion', 'werkstatt', 'kiosk', 'hotel', 'ausstellungsfläche',
+)
+
+
+async def get_scraperapi_key() -> Optional[str]:
+    doc = await db.app_settings.find_one({"key": "scraperapi_key"})
+    if doc and doc.get("value"):
+        return doc["value"]
+    return os.environ.get("SCRAPERAPI_KEY") or None
+
+
+def _scraperapi_fetch(api_key: str, url: str) -> Optional[str]:
+    """Fetch a bot-protected page (immowelt/DataDome) via ScraperAPI ultra-premium."""
+    try:
+        params = {
+            "api_key": api_key, "url": url,
+            "ultra_premium": "true", "render": "true", "country_code": "de",
+        }
+        r = requests.get(SCRAPERAPI_ENDPOINT, params=params, timeout=120)
+        if r.status_code == 200:
+            return r.text
+        logger.warning(f"ScraperAPI {r.status_code} for {url}: {r.text[:140]}")
+    except Exception as e:
+        logger.error(f"ScraperAPI fetch failed for {url}: {e}")
+    return None
+
+
+def _parse_immowelt_profile_apartments(html: str) -> List[dict]:
+    """From an immowelt profile page, return APARTMENT listings only.
+    Each item: {expose_id, title, detail_url}. Commercial objects are skipped."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, 'html.parser')
+    seen = {}
+    for a in soup.find_all('a', href=True):
+        m = re.search(r'/expose/([a-f0-9\-]{36})', a['href'])
+        if not m:
+            continue
+        expose_id = m.group(1)
+        label = (a.get('title') or a.get_text(' ', strip=True) or '').strip()
+        low = label.lower()
+        if 'wohnung' not in low:
+            continue
+        if any(k in low for k in _COMMERCIAL_KEYWORDS):
+            continue
+        if expose_id not in seen:
+            seen[expose_id] = {
+                "expose_id": expose_id,
+                "title": label[:200],
+                "detail_url": f"https://www.immowelt.de/expose/{expose_id}",
+            }
+    return list(seen.values())
+
+
+def _extract_immomio_url_from_html(html: str) -> Optional[str]:
+    m = re.search(r'https?://tenant\.immomio\.com/(?:de/)?apply/[a-f0-9\-]+', html or '')
+    return m.group(0) if m else None
+
+
+async def scan_immowelt_profiles():
+    """Monitor configured immowelt landlord profiles. For each NEW apartment:
+    open the listing, extract the immomio apply link, then publish via the
+    immomio parser. Uses ScraperAPI to bypass immowelt's bot protection."""
+    if scanning_state["is_scanning"]:
+        return
+    api_key = await get_scraperapi_key()
+    if not api_key:
+        logger.info("Immowelt scan skipped: no ScraperAPI key")
+        return
+    profiles = await db.immowelt_profiles.find({}, {"_id": 0}).to_list(100)
+    if not profiles:
+        return
+
+    new_apartments = []
+    for prof in profiles:
+        prof_url = prof.get("url")
+        if not prof_url:
+            continue
+        html = await asyncio.to_thread(_scraperapi_fetch, api_key, prof_url)
+        if not html:
+            logger.warning(f"Immowelt profile fetch empty: {prof_url}")
+            continue
+        listings = _parse_immowelt_profile_apartments(html)
+        logger.info(f"Immowelt {prof_url}: {len(listings)} apartment listing(s)")
+        for lst in listings:
+            expose_id = lst["expose_id"]
+            if await db.immowelt_seen.find_one({"expose_id": expose_id}):
+                continue  # already processed — save credits
+            detail_html = await asyncio.to_thread(_scraperapi_fetch, api_key, lst["detail_url"])
+            immomio_url = _extract_immomio_url_from_html(detail_html)
+            await db.immowelt_seen.insert_one({
+                "expose_id": expose_id,
+                "immomio_url": immomio_url,
+                "title": lst["title"],
+                "seen_at": datetime.now(timezone.utc).isoformat(),
+            })
+            if not immomio_url:
+                logger.info(f"Immowelt expose {expose_id}: no immomio link")
+                continue
+            apartment = await asyncio.to_thread(
+                parse_immomio_listing, immomio_url.replace('/de/apply/', '/apply/')
+            )
+            if not apartment:
+                continue
+            if await db.apartments.find_one({"id": apartment["id"]}, {"_id": 0}):
+                continue
+            apt_dict = apartment.copy()
+            if isinstance(apt_dict['found_at'], datetime):
+                apt_dict['found_at'] = apt_dict['found_at'].isoformat()
+            await db.apartments.insert_one(apt_dict)
+            new_apartments.append(apartment)
+            logger.info(f"Immowelt→immomio NEW apartment: {apartment['title']}")
+            try:
+                payload_apt = {k: v for k, v in apt_dict.items() if k != '_id'}
+                await ws_manager.broadcast({"type": "new_apartment", "apartment": payload_apt})
+            except Exception as e:
+                logger.debug(f"WS broadcast failed: {e}")
+
+    if new_apartments:
+        await notify_new_apartments(new_apartments)
+        try:
+            await ws_manager.broadcast({"type": "scan_complete", "new_count": len(new_apartments)})
+        except Exception:
+            pass
+    logger.info(f"Immowelt scan done: {len(new_apartments)} new apartment(s)")
+
+
 # ============= SCAN TASK =============
 
 scanning_state = {
@@ -1326,81 +1532,9 @@ async def scan_apartments():
         }
         await db.scan_logs.insert_one(scan_log)
         
-        # Send email to all users with notifications enabled - filtered by their personal preferences
-        if new_apartments and resend.api_key:
-            users_to_notify = await db.users.find({
-                "notifications_enabled": True,
-                "notification_email": {"$ne": None, "$ne": ""}
-            }, {
-                "notification_email": 1, "min_price": 1, "max_price": 1, 
-                "min_rooms": 1, "max_rooms": 1, "role": 1, "access_expires_at": 1, "_id": 0
-            }).to_list(1000)
-            
-            for user_prefs in users_to_notify:
-                email_addr = user_prefs.get('notification_email')
-                if not email_addr:
-                    continue
-
-                # Skip users whose subscription/access has expired
-                if not is_access_active(user_prefs):
-                    logger.info(f"Skipping email for {email_addr} — access expired")
-                    continue
-                
-                # Filter apartments based on user's personal preferences
-                user_apts = []
-                for apt in new_apartments:
-                    if user_prefs.get('min_price') is not None and (apt.get('price') is None or apt['price'] < user_prefs['min_price']):
-                        continue
-                    if user_prefs.get('max_price') is not None and (apt.get('price') is None or apt['price'] > user_prefs['max_price']):
-                        continue
-                    if user_prefs.get('min_rooms') is not None and (apt.get('rooms') is None or apt['rooms'] < user_prefs['min_rooms']):
-                        continue
-                    if user_prefs.get('max_rooms') is not None and (apt.get('rooms') is None or apt['rooms'] > user_prefs['max_rooms']):
-                        continue
-                    user_apts.append(apt)
-                
-                if not user_apts:
-                    logger.info(f"No matching apartments for {email_addr} (filtered out)")
-                    continue
-                
-                try:
-                    html_content = f"<h2>🏠 {len(user_apts)} neue Wohnungen in Hamburg gefunden!</h2>"
-                    html_content += "<ul>"
-                    for apt in user_apts:
-                        html_content += f"<li><strong>{apt['title']}</strong><br>"
-                        if apt.get('price'):
-                            html_content += f"Preis: €{apt['price']:.2f}<br>"
-                        if apt.get('rooms'):
-                            html_content += f"Zimmer: {apt['rooms']}<br>"
-                        if apt.get('area'):
-                            html_content += f"Fläche: {apt['area']}m²<br>"
-                        if apt.get('address'):
-                            html_content += f"Adresse: {apt['address']}<br>"
-                        if apt.get('landlord'):
-                            html_content += f"Vermieter: {apt['landlord']}<br>"
-                        html_content += f"<a href='{apt['url']}'>Zur Anzeige</a></li><br>"
-                    html_content += "</ul>"
-                    
-                    params = {
-                        "from": SENDER_EMAIL,
-                        "to": [email_addr],
-                        "subject": f"🏠 {len(user_apts)} neue Wohnungen in Hamburg",
-                        "html": html_content
-                    }
-                    await asyncio.to_thread(resend.Emails.send, params)
-                    logger.info(f"Email sent to {email_addr} with {len(user_apts)} filtered apartments")
-                except Exception as e:
-                    logger.error(f"Failed to send email to {email_addr}: {str(e)}")
-        
-        # ===== PUSH NOTIFICATIONS =====
-        # Per-user web-push (PWA) — respects each user's profile filters.
-        # Runs even when email is disabled or when user does not have an email
-        # set, so users can opt into push-only delivery.
+        # Send notifications (email + web push) for all new apartments
         if new_apartments:
-            try:
-                await send_push_notifications_for_new_apartments(new_apartments)
-            except Exception as e:
-                logger.error(f"Push notifications failed: {e}")
+            await notify_new_apartments(new_apartments)
 
         scanning_state["last_scan"] = datetime.now(timezone.utc)
         scanning_state["next_scan"] = datetime.now(timezone.utc) + timedelta(minutes=3)
@@ -1709,6 +1843,94 @@ async def remove_manual_url(data: ManualUrlAdd, admin: dict = Depends(get_admin_
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="URL not found")
     return {"message": "URL removed"}
+
+
+# ============= SCRAPERAPI + IMMOWELT ADMIN ENDPOINTS =============
+
+class ScraperApiKeyUpdate(BaseModel):
+    api_key: str
+
+
+class ImmoweltProfileAdd(BaseModel):
+    url: str
+    name: Optional[str] = None
+
+
+@api_router.get("/admin/scraperapi/account")
+async def scraperapi_account(admin: dict = Depends(get_admin_user)):
+    """Return the ScraperAPI credit/usage info for the configured key."""
+    api_key = await get_scraperapi_key()
+    if not api_key:
+        return {"configured": False}
+    try:
+        r = await asyncio.to_thread(
+            lambda: requests.get("https://api.scraperapi.com/account",
+                                 params={"api_key": api_key}, timeout=30)
+        )
+        if r.status_code != 200:
+            return {"configured": True, "error": f"ScraperAPI returned {r.status_code}", "detail": r.text[:200]}
+        d = r.json()
+        used = d.get("requestCount", 0)
+        limit = d.get("requestLimit", 0)
+        return {
+            "configured": True,
+            "requestCount": used,
+            "requestLimit": limit,
+            "creditsLeft": d.get("creditsLeft", max(0, limit - used)),
+            "concurrencyLimit": d.get("concurrencyLimit"),
+            "failedRequestCount": d.get("failedRequestCount", 0),
+            "key_masked": (api_key[:4] + "…" + api_key[-4:]) if len(api_key) > 8 else "set",
+        }
+    except Exception as e:
+        return {"configured": True, "error": str(e)}
+
+
+@api_router.put("/admin/scraperapi/key")
+async def update_scraperapi_key(data: ScraperApiKeyUpdate, admin: dict = Depends(get_admin_user)):
+    key = data.api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="API key must not be empty")
+    await db.app_settings.update_one(
+        {"key": "scraperapi_key"}, {"$set": {"value": key}}, upsert=True
+    )
+    return {"message": "ScraperAPI key updated", "key_masked": key[:4] + "…" + key[-4:]}
+
+
+@api_router.get("/admin/immowelt-profiles")
+async def list_immowelt_profiles(admin: dict = Depends(get_admin_user)):
+    profiles = await db.immowelt_profiles.find({}, {"_id": 0}).to_list(100)
+    return profiles
+
+
+@api_router.post("/admin/immowelt-profiles")
+async def add_immowelt_profile(data: ImmoweltProfileAdd, admin: dict = Depends(get_admin_user)):
+    url = data.url.strip()
+    if 'immowelt.de/profil/' not in url:
+        raise HTTPException(status_code=400, detail="Bitte eine immowelt.de/profil/... URL angeben")
+    if await db.immowelt_profiles.find_one({"url": url}):
+        raise HTTPException(status_code=400, detail="Dieses Profil ist bereits hinterlegt")
+    await db.immowelt_profiles.insert_one({
+        "url": url,
+        "name": (data.name or "").strip() or None,
+        "added_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"message": "Profil hinzugefügt", "url": url}
+
+
+@api_router.delete("/admin/immowelt-profiles")
+async def remove_immowelt_profile(data: ImmoweltProfileAdd, admin: dict = Depends(get_admin_user)):
+    result = await db.immowelt_profiles.delete_one({"url": data.url.strip()})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Profil nicht gefunden")
+    return {"message": "Profil entfernt"}
+
+
+@api_router.post("/admin/immowelt/scan")
+async def trigger_immowelt_scan(admin: dict = Depends(get_admin_user)):
+    """Manually trigger an immowelt profile scan (runs in background)."""
+    asyncio.create_task(scan_immowelt_profiles())
+    return {"message": "Immowelt-Scan gestartet"}
+
 
 # ============= APARTMENT ENDPOINTS (protected) =============
 
@@ -2123,6 +2345,23 @@ async def seed_admin():
         )
         logger.info(f"Admin password updated: {admin_email}")
 
+async def seed_integrations():
+    """Seed the ScraperAPI key (from env) and the initial immowelt profile once."""
+    existing_key = await db.app_settings.find_one({"key": "scraperapi_key"})
+    env_key = os.environ.get("SCRAPERAPI_KEY")
+    if existing_key is None and env_key:
+        await db.app_settings.insert_one({"key": "scraperapi_key", "value": env_key})
+        logger.info("ScraperAPI key seeded from env")
+    # Seed the SAGA Vermietungshotline immowelt profile if no profiles exist yet
+    if await db.immowelt_profiles.count_documents({}) == 0:
+        await db.immowelt_profiles.insert_one({
+            "url": "https://www.immowelt.de/profil/93fa94a998da4c34a9a8acc20a3af869",
+            "name": "SAGA Vermietungshotline",
+            "added_at": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info("Seeded initial immowelt profile")
+
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting apartment scanner service...")
@@ -2131,14 +2370,18 @@ async def startup_event():
     try:
         await db.users.create_index("email", unique=True)
         await db.apartments.create_index("id", unique=True)
+        await db.immowelt_seen.create_index("expose_id", unique=True)
     except Exception as e:
         logger.error(f"Index error: {e}")
     
-    # Seed admin
+    # Seed admin + integrations
     await seed_admin()
+    await seed_integrations()
     
-    # Schedule scan every 3 minutes
+    # Schedule scans
     scheduler.add_job(scan_apartments, 'interval', minutes=3, id='apartment_scanner')
+    # Immowelt uses paid ScraperAPI credits → scan less frequently (every 10 min)
+    scheduler.add_job(scan_immowelt_profiles, 'interval', minutes=10, id='immowelt_scanner')
     scheduler.start()
     
     scanning_state["next_scan"] = datetime.now(timezone.utc) + timedelta(minutes=3)
@@ -2146,7 +2389,7 @@ async def startup_event():
     # Run initial scan in background
     asyncio.create_task(scan_apartments())
     
-    logger.info("Scheduler started - scanning every 3 minutes")
+    logger.info("Scheduler started - apartments every 3 min, immowelt every 10 min")
 
 @app.on_event("shutdown")
 async def shutdown_event():

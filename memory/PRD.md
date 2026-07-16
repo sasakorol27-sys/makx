@@ -75,3 +75,12 @@
   - Frontend: екран "Zugang geschlossen" (AccessExpired.jsx) з кнопкою продовження → Telegram @albina_pay
   - Admin завжди активний; порожній expiry = необмежено
   - Перевірено curl: create(30д)→active, revoke(0)→403, restore(30)→200
+
+## CHANGELOG — Immowelt + ScraperAPI + Admin Tabs (2026-07-16)
+- ScraperAPI інтеграція (ключ у .env + DB app_settings, редагується з адмінки)
+- Потік immowelt: профіль → лише Wohnung (skip Gewerbe/Büro/Restaurant) → detail page → extract tenant.immomio.com/apply → parse_immomio_listing → publish. Планувальник кожні 10 хв + ручний тригер.
+- db collections: immowelt_profiles, immowelt_seen (кеш expose→immomio щоб не витрачати кредити), app_settings
+- Admin endpoints: GET /admin/scraperapi/account, PUT /admin/scraperapi/key, GET/POST/DELETE /admin/immowelt-profiles, POST /admin/immowelt/scan
+- notify_new_apartments() винесено як спільну функцію (email+push) для обох сканів
+- Адмінка перероблена на 3 вкладки: Benutzer / immomio-URLs / Immowelt & ScraperAPI (лічильник кредитів + прогрес-бар + зміна ключа)
+- ⚠️ ВАЖЛИВО: безкоштовний тариф ScraperAPI НЕ включає premium/ultra_premium проксі, потрібні для DataDome immowelt (free tier → 403/500). Потрібен платний тариф.
