@@ -972,12 +972,39 @@ def scrape_walddoerfer() -> List[str]:
     return []
 
 
+_GCV_DETAIL_CACHE: dict = {}
+
+
+def _gcv_immomio_for_expose(expose_id: str, detail_url: str) -> Optional[str]:
+    """Fetch a GCV ImmoScout24 expose page and extract its immomio apply link.
+    Cached per expose to avoid re-fetching on every 3-min scan."""
+    if expose_id in _GCV_DETAIL_CACHE:
+        return _GCV_DETAIL_CACHE[expose_id]
+    immomio = None
+    try:
+        rr = requests.get(detail_url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'de-DE,de;q=0.9',
+        }, timeout=20)
+        if rr.status_code == 200:
+            m = re.search(r'https?://tenant\.immomio\.com/(?:de/)?apply/[a-f0-9\-]+', rr.text)
+            if m:
+                immomio = m.group(0)
+    except Exception as e:
+        logger.debug(f"GCV detail fetch failed for {expose_id}: {e}")
+    _GCV_DETAIL_CACHE[expose_id] = immomio
+    return immomio
+
+
 def scrape_gcv() -> List[dict]:
     """
     GCV Verwaltungsgesellschaft. The actual listings are not on gcv-gmbh.de —
     that page only embeds an ImmoScout24 portfolio iframe
     (portal.immobilienscout24.de/ergebnisliste/84239610).
-    We scrape the IS24 portal directly via plain HTTP.
+    We scrape the IS24 portal directly via plain HTTP, then for each listing we
+    follow the expose page and extract the immomio apply link so the apartment is
+    published with its immomio URL + address (instead of the IS24 page).
     """
     from bs4 import BeautifulSoup
     apartments: List[dict] = []
@@ -1089,6 +1116,29 @@ def scrape_gcv() -> List[dict]:
                     if m.group(2):
                         district = m.group(2).strip()
 
+                # Prefer the immomio apply link from the IS24 detail page:
+                # publish with the immomio URL + address instead of the IS24 page.
+                immomio_url = _gcv_immomio_for_expose(expose_id, detail_url)
+                if immomio_url:
+                    parsed = parse_immomio_listing(immomio_url.replace('/de/apply/', '/apply/'))
+                    if parsed:
+                        parsed['landlord'] = 'GCV Hamburg'
+                        if not parsed.get('image_url'):
+                            parsed['image_url'] = image_url
+                        if parsed.get('price') is None:
+                            parsed['price'] = price
+                        if parsed.get('rooms') is None:
+                            parsed['rooms'] = rooms
+                        if parsed.get('area') is None:
+                            parsed['area'] = area
+                        if not parsed.get('address') and address:
+                            parsed['address'] = address
+                        if not parsed.get('district') and district:
+                            parsed['district'] = district
+                        apartments.append(parsed)
+                        continue
+
+                # Fallback: no immomio link on this listing → keep IS24 data/URL
                 apartments.append({
                     "id": f"gcv-{expose_id}",
                     "title": title[:200],
