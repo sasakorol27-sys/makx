@@ -1408,6 +1408,17 @@ async def get_scrapfly_key() -> Optional[str]:
     return os.environ.get("SCRAPFLY_KEY") or None
 
 
+async def get_immowelt_interval() -> int:
+    """Immowelt scan interval in minutes (admin-configurable, default 60)."""
+    doc = await db.app_settings.find_one({"key": "immowelt_interval_minutes"})
+    try:
+        if doc and doc.get("value"):
+            return max(1, int(doc["value"]))
+    except (ValueError, TypeError):
+        pass
+    return 60
+
+
 def _scrapfly_fetch(api_key: str, url: str) -> Optional[str]:
     """Fetch a bot-protected page (immowelt/DataDome) via Scrapfly with ASP
     (Anti-Scraping Protection) enabled. Returns the rendered HTML or None."""
@@ -1987,6 +1998,29 @@ async def trigger_immowelt_scan(admin: dict = Depends(get_admin_user)):
     return {"message": "Immowelt-Scan gestartet"}
 
 
+class IntervalUpdate(BaseModel):
+    minutes: int
+
+
+@api_router.get("/admin/immowelt/interval")
+async def get_immowelt_interval_endpoint(admin: dict = Depends(get_admin_user)):
+    return {"minutes": await get_immowelt_interval()}
+
+
+@api_router.put("/admin/immowelt/interval")
+async def set_immowelt_interval(data: IntervalUpdate, admin: dict = Depends(get_admin_user)):
+    if data.minutes < 1:
+        raise HTTPException(status_code=400, detail="Intervall muss mindestens 1 Minute betragen")
+    await db.app_settings.update_one(
+        {"key": "immowelt_interval_minutes"}, {"$set": {"value": data.minutes}}, upsert=True
+    )
+    try:
+        scheduler.reschedule_job('immowelt_scanner', trigger='interval', minutes=data.minutes)
+    except Exception as e:
+        logger.warning(f"Immowelt reschedule failed: {e}")
+    return {"message": f"Intervall auf {data.minutes} Min gesetzt", "minutes": data.minutes}
+
+
 # ============= APARTMENT ENDPOINTS (protected) =============
 
 @api_router.get("/")
@@ -2435,9 +2469,9 @@ async def startup_event():
     
     # Schedule scans
     scheduler.add_job(scan_apartments, 'interval', minutes=3, id='apartment_scanner')
-    # Immowelt via Scrapfly ASP is credit-expensive (~25 credits/request for the
-    # DataDome bypass). Free tier = ~1000 credits/month, so scan hourly by default.
-    scheduler.add_job(scan_immowelt_profiles, 'interval', minutes=60, id='immowelt_scanner')
+    # Immowelt via Scrapfly ASP is credit-expensive. Interval is admin-configurable.
+    immowelt_interval = await get_immowelt_interval()
+    scheduler.add_job(scan_immowelt_profiles, 'interval', minutes=immowelt_interval, id='immowelt_scanner')
     scheduler.start()
     
     scanning_state["next_scan"] = datetime.now(timezone.utc) + timedelta(minutes=3)
@@ -2445,7 +2479,7 @@ async def startup_event():
     # Run initial scan in background
     asyncio.create_task(scan_apartments())
     
-    logger.info("Scheduler started - apartments every 3 min, immowelt every 60 min")
+    logger.info(f"Scheduler started - apartments every 3 min, immowelt every {immowelt_interval} min")
 
 @app.on_event("shutdown")
 async def shutdown_event():

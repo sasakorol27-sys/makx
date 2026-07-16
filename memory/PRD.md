@@ -91,3 +91,8 @@
 - Адмінка вкладка "Immowelt & Scrapfly": лічильник (used/limit/remaining), прогрес, зміна ключа
 - ✅ Перевірено E2E: профіль SAGA → 1 Wohnung (skip Büro/Restaurant) → detail → immomio apply → published (523€, SAGA). Кожен ASP-запит ~25 кредитів.
 - Інтервал immowelt = 60 хв (free 1000 кредитів ≈ 40 запитів/міс — тріал лише для тесту, для постійного моніторингу потрібен платний тариф)
+
+## CHANGELOG — Scan interval (2026-07-16)
+- Adminka: поле "Scan-Intervall (Minuten)" у вкладці Immowelt & Scrapfly
+- Endpoints GET/PUT /admin/immowelt/interval; зберігається в app_settings; APScheduler reschedule на льоту; default 60
+- GCV: витягує immomio apply link з IS24-експозе → публікує з immomio URL + адресою (10/11)

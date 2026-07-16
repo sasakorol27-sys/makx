@@ -33,12 +33,14 @@ export default function AdminPanel() {
   const [scraperAccount, setScraperAccount] = useState(null);
   const [newApiKey, setNewApiKey] = useState('');
   const [immoweltScanning, setImmoweltScanning] = useState(false);
+  const [intervalMin, setIntervalMin] = useState('');
 
   useEffect(() => {
     fetchUsers();
     fetchManualUrls();
     fetchImmoweltProfiles();
     fetchScraperAccount();
+    fetchInterval();
   }, []);
 
   // ---------- fetchers ----------
@@ -54,6 +56,18 @@ export default function AdminPanel() {
   };
   const fetchScraperAccount = async () => {
     try { const { data } = await api.get('/api/admin/scrapfly/account'); setScraperAccount(data); } catch {}
+  };
+  const fetchInterval = async () => {
+    try { const { data } = await api.get('/api/admin/immowelt/interval'); setIntervalMin(String(data.minutes)); } catch {}
+  };
+  const handleSaveInterval = async (e) => {
+    e.preventDefault();
+    const m = parseInt(intervalMin, 10);
+    if (Number.isNaN(m) || m < 1) { toast.error('Bitte eine gültige Anzahl Minuten (≥ 1) eingeben'); return; }
+    try {
+      const { data } = await api.put('/api/admin/immowelt/interval', { minutes: m });
+      toast.success(`Scan-Intervall auf ${data.minutes} Min gesetzt`);
+    } catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Fehler'); }
   };
 
   // ---------- users ----------
@@ -404,8 +418,20 @@ export default function AdminPanel() {
                 </button>
               </div>
               <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-                Neue <strong className="text-foreground/80">Wohnungen</strong> (keine Gewerbe/Büros) werden automatisch erkannt, die immomio-Bewerbungslinks extrahiert und veröffentlicht. Scan alle 10 Min.
+                Neue <strong className="text-foreground/80">Wohnungen</strong> (keine Gewerbe/Büros) werden automatisch erkannt, die immomio-Bewerbungslinks extrahiert und veröffentlicht.
               </p>
+
+              {/* Scan interval */}
+              <form onSubmit={handleSaveInterval} className="rounded-xl bg-secondary/60 border border-border/60 p-5 mb-5" data-testid="interval-form">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-3 flex items-center gap-1.5">
+                  <Clock weight="bold" size={14} />Scan-Intervall (Minuten)
+                </h3>
+                <div className="flex gap-2 items-center">
+                  <Input type="number" min="1" value={intervalMin} onChange={(e) => setIntervalMin(e.target.value)} placeholder="z.B. 60" className="h-11 w-32 rounded-xl bg-background text-sm focus-visible:ring-2 focus-visible:ring-primary" data-testid="interval-input" />
+                  <button type="submit" className="px-5 h-11 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:brightness-105 transition-[filter] duration-200 whitespace-nowrap" data-testid="save-interval">Speichern</button>
+                  <span className="text-xs text-muted-foreground ml-1">höher = weniger Kredite</span>
+                </div>
+              </form>
               <form onSubmit={handleAddProfile} className="rounded-xl bg-secondary/60 border border-border/60 p-5 mb-6" data-testid="add-profile-form">
                 <div className="space-y-3">
                   <Input type="url" required value={newProfile.url} onChange={(e) => setNewProfile({ ...newProfile, url: e.target.value })} placeholder="https://www.immowelt.de/profil/..." className="h-11 rounded-xl bg-background text-sm focus-visible:ring-2 focus-visible:ring-primary" data-testid="new-profile-url" />
