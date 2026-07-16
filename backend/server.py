@@ -1340,9 +1340,9 @@ async def notify_new_apartments(new_apartments: List[dict]):
         logger.error(f"Push notifications failed: {e}")
 
 
-# ============= SCRAPERAPI + IMMOWELT PROFILE SCRAPER =============
+# ============= SCRAPFLY + IMMOWELT PROFILE SCRAPER =============
 
-SCRAPERAPI_ENDPOINT = "https://api.scraperapi.com/"
+SCRAPFLY_ENDPOINT = "https://api.scrapfly.io/scrape"
 # Listing type keywords that are NOT apartments (skip these on immowelt profiles)
 _COMMERCIAL_KEYWORDS = (
     'bürofläche', 'büro', 'gewerbe', 'restaurant', 'laden', 'ladenfläche', 'stellplatz',
@@ -1351,26 +1351,29 @@ _COMMERCIAL_KEYWORDS = (
 )
 
 
-async def get_scraperapi_key() -> Optional[str]:
-    doc = await db.app_settings.find_one({"key": "scraperapi_key"})
+async def get_scrapfly_key() -> Optional[str]:
+    doc = await db.app_settings.find_one({"key": "scrapfly_key"})
     if doc and doc.get("value"):
         return doc["value"]
-    return os.environ.get("SCRAPERAPI_KEY") or None
+    return os.environ.get("SCRAPFLY_KEY") or None
 
 
-def _scraperapi_fetch(api_key: str, url: str) -> Optional[str]:
-    """Fetch a bot-protected page (immowelt/DataDome) via ScraperAPI ultra-premium."""
+def _scrapfly_fetch(api_key: str, url: str) -> Optional[str]:
+    """Fetch a bot-protected page (immowelt/DataDome) via Scrapfly with ASP
+    (Anti-Scraping Protection) enabled. Returns the rendered HTML or None."""
     try:
-        params = {
-            "api_key": api_key, "url": url,
-            "ultra_premium": "true", "render": "true", "country_code": "de",
-        }
-        r = requests.get(SCRAPERAPI_ENDPOINT, params=params, timeout=120)
-        if r.status_code == 200:
-            return r.text
-        logger.warning(f"ScraperAPI {r.status_code} for {url}: {r.text[:140]}")
+        params = {"key": api_key, "url": url, "asp": "true", "country": "de"}
+        r = requests.get(SCRAPFLY_ENDPOINT, params=params, timeout=150)
+        if r.status_code != 200:
+            logger.warning(f"Scrapfly HTTP {r.status_code} for {url}: {r.text[:140]}")
+            return None
+        data = r.json()
+        res = data.get("result", {}) or {}
+        if res.get("status_code") == 200:
+            return res.get("content")
+        logger.warning(f"Scrapfly result status {res.get('status_code')} for {url}")
     except Exception as e:
-        logger.error(f"ScraperAPI fetch failed for {url}: {e}")
+        logger.error(f"Scrapfly fetch failed for {url}: {e}")
     return None
 
 
@@ -1411,9 +1414,9 @@ async def scan_immowelt_profiles():
     immomio parser. Uses ScraperAPI to bypass immowelt's bot protection."""
     if scanning_state["is_scanning"]:
         return
-    api_key = await get_scraperapi_key()
+    api_key = await get_scrapfly_key()
     if not api_key:
-        logger.info("Immowelt scan skipped: no ScraperAPI key")
+        logger.info("Immowelt scan skipped: no Scrapfly key")
         return
     profiles = await db.immowelt_profiles.find({}, {"_id": 0}).to_list(100)
     if not profiles:
@@ -1424,7 +1427,7 @@ async def scan_immowelt_profiles():
         prof_url = prof.get("url")
         if not prof_url:
             continue
-        html = await asyncio.to_thread(_scraperapi_fetch, api_key, prof_url)
+        html = await asyncio.to_thread(_scrapfly_fetch, api_key, prof_url)
         if not html:
             logger.warning(f"Immowelt profile fetch empty: {prof_url}")
             continue
@@ -1434,7 +1437,7 @@ async def scan_immowelt_profiles():
             expose_id = lst["expose_id"]
             if await db.immowelt_seen.find_one({"expose_id": expose_id}):
                 continue  # already processed — save credits
-            detail_html = await asyncio.to_thread(_scraperapi_fetch, api_key, lst["detail_url"])
+            detail_html = await asyncio.to_thread(_scrapfly_fetch, api_key, lst["detail_url"])
             immomio_url = _extract_immomio_url_from_html(detail_html)
             await db.immowelt_seen.insert_one({
                 "expose_id": expose_id,
@@ -1845,7 +1848,7 @@ async def remove_manual_url(data: ManualUrlAdd, admin: dict = Depends(get_admin_
     return {"message": "URL removed"}
 
 
-# ============= SCRAPERAPI + IMMOWELT ADMIN ENDPOINTS =============
+# ============= SCRAPFLY + IMMOWELT ADMIN ENDPOINTS =============
 
 class ScraperApiKeyUpdate(BaseModel):
     api_key: str
@@ -1856,44 +1859,46 @@ class ImmoweltProfileAdd(BaseModel):
     name: Optional[str] = None
 
 
-@api_router.get("/admin/scraperapi/account")
-async def scraperapi_account(admin: dict = Depends(get_admin_user)):
-    """Return the ScraperAPI credit/usage info for the configured key."""
-    api_key = await get_scraperapi_key()
+@api_router.get("/admin/scrapfly/account")
+async def scrapfly_account(admin: dict = Depends(get_admin_user)):
+    """Return Scrapfly credit/usage info for the configured key."""
+    api_key = await get_scrapfly_key()
     if not api_key:
         return {"configured": False}
     try:
         r = await asyncio.to_thread(
-            lambda: requests.get("https://api.scraperapi.com/account",
-                                 params={"api_key": api_key}, timeout=30)
+            lambda: requests.get("https://api.scrapfly.io/account",
+                                 params={"key": api_key}, timeout=30)
         )
         if r.status_code != 200:
-            return {"configured": True, "error": f"ScraperAPI returned {r.status_code}", "detail": r.text[:200]}
+            return {"configured": True, "error": f"Scrapfly returned {r.status_code}", "detail": r.text[:200]}
         d = r.json()
-        used = d.get("requestCount", 0)
-        limit = d.get("requestLimit", 0)
+        scrape = (d.get("subscription", {}) or {}).get("usage", {}).get("scrape", {}) or {}
+        used = scrape.get("current", 0)
+        limit = scrape.get("limit", 0)
+        remaining = scrape.get("remaining", max(0, limit - used))
         return {
             "configured": True,
             "requestCount": used,
             "requestLimit": limit,
-            "creditsLeft": d.get("creditsLeft", max(0, limit - used)),
-            "concurrencyLimit": d.get("concurrencyLimit"),
-            "failedRequestCount": d.get("failedRequestCount", 0),
-            "key_masked": (api_key[:4] + "…" + api_key[-4:]) if len(api_key) > 8 else "set",
+            "creditsLeft": remaining,
+            "concurrencyLimit": scrape.get("concurrent_limit"),
+            "plan_name": (d.get("subscription", {}) or {}).get("plan_name"),
+            "key_masked": (api_key[:8] + "…" + api_key[-4:]) if len(api_key) > 12 else "set",
         }
     except Exception as e:
         return {"configured": True, "error": str(e)}
 
 
-@api_router.put("/admin/scraperapi/key")
-async def update_scraperapi_key(data: ScraperApiKeyUpdate, admin: dict = Depends(get_admin_user)):
+@api_router.put("/admin/scrapfly/key")
+async def update_scrapfly_key(data: ScraperApiKeyUpdate, admin: dict = Depends(get_admin_user)):
     key = data.api_key.strip()
     if not key:
         raise HTTPException(status_code=400, detail="API key must not be empty")
     await db.app_settings.update_one(
-        {"key": "scraperapi_key"}, {"$set": {"value": key}}, upsert=True
+        {"key": "scrapfly_key"}, {"$set": {"value": key}}, upsert=True
     )
-    return {"message": "ScraperAPI key updated", "key_masked": key[:4] + "…" + key[-4:]}
+    return {"message": "Scrapfly key updated", "key_masked": key[:8] + "…" + key[-4:]}
 
 
 @api_router.get("/admin/immowelt-profiles")
@@ -2346,12 +2351,12 @@ async def seed_admin():
         logger.info(f"Admin password updated: {admin_email}")
 
 async def seed_integrations():
-    """Seed the ScraperAPI key (from env) and the initial immowelt profile once."""
-    existing_key = await db.app_settings.find_one({"key": "scraperapi_key"})
-    env_key = os.environ.get("SCRAPERAPI_KEY")
+    """Seed the Scrapfly key (from env) and the initial immowelt profile once."""
+    existing_key = await db.app_settings.find_one({"key": "scrapfly_key"})
+    env_key = os.environ.get("SCRAPFLY_KEY")
     if existing_key is None and env_key:
-        await db.app_settings.insert_one({"key": "scraperapi_key", "value": env_key})
-        logger.info("ScraperAPI key seeded from env")
+        await db.app_settings.insert_one({"key": "scrapfly_key", "value": env_key})
+        logger.info("Scrapfly key seeded from env")
     # Seed the SAGA Vermietungshotline immowelt profile if no profiles exist yet
     if await db.immowelt_profiles.count_documents({}) == 0:
         await db.immowelt_profiles.insert_one({
@@ -2380,8 +2385,9 @@ async def startup_event():
     
     # Schedule scans
     scheduler.add_job(scan_apartments, 'interval', minutes=3, id='apartment_scanner')
-    # Immowelt uses paid ScraperAPI credits → scan less frequently (every 10 min)
-    scheduler.add_job(scan_immowelt_profiles, 'interval', minutes=10, id='immowelt_scanner')
+    # Immowelt via Scrapfly ASP is credit-expensive (~25 credits/request for the
+    # DataDome bypass). Free tier = ~1000 credits/month, so scan hourly by default.
+    scheduler.add_job(scan_immowelt_profiles, 'interval', minutes=60, id='immowelt_scanner')
     scheduler.start()
     
     scanning_state["next_scan"] = datetime.now(timezone.utc) + timedelta(minutes=3)
@@ -2389,7 +2395,7 @@ async def startup_event():
     # Run initial scan in background
     asyncio.create_task(scan_apartments())
     
-    logger.info("Scheduler started - apartments every 3 min, immowelt every 10 min")
+    logger.info("Scheduler started - apartments every 3 min, immowelt every 60 min")
 
 @app.on_event("shutdown")
 async def shutdown_event():

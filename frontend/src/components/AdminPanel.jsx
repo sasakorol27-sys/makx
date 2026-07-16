@@ -53,7 +53,7 @@ export default function AdminPanel() {
     try { const { data } = await api.get('/api/admin/immowelt-profiles'); setImmoweltProfiles(data); } catch {}
   };
   const fetchScraperAccount = async () => {
-    try { const { data } = await api.get('/api/admin/scraperapi/account'); setScraperAccount(data); } catch {}
+    try { const { data } = await api.get('/api/admin/scrapfly/account'); setScraperAccount(data); } catch {}
   };
 
   // ---------- users ----------
@@ -132,8 +132,8 @@ export default function AdminPanel() {
     e.preventDefault();
     if (!newApiKey.trim()) { toast.error('Bitte einen API-Key eingeben'); return; }
     try {
-      await api.put('/api/admin/scraperapi/key', { api_key: newApiKey.trim() });
-      toast.success('ScraperAPI-Key aktualisiert');
+      await api.put('/api/admin/scrapfly/key', { api_key: newApiKey.trim() });
+      toast.success('Scrapfly-Key aktualisiert');
       setNewApiKey('');
       fetchScraperAccount();
     } catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Fehler'); }
@@ -157,7 +157,7 @@ export default function AdminPanel() {
   const tabs = [
     { id: 'users', label: 'Benutzer', icon: Users },
     { id: 'urls', label: 'immomio-URLs', icon: LinkIcon },
-    { id: 'immowelt', label: 'Immowelt & ScraperAPI', icon: Buildings },
+    { id: 'immowelt', label: 'Immowelt & Scrapfly', icon: Buildings },
   ];
 
   const creditsPct = scraperAccount?.requestLimit
@@ -342,7 +342,7 @@ export default function AdminPanel() {
               <div className="flex items-center justify-between gap-3 mb-5">
                 <h2 className="font-heading text-xl font-semibold flex items-center gap-2">
                   <Gauge weight="bold" size={22} className="text-primary" />
-                  ScraperAPI Konto
+                  Scrapfly Konto
                 </h2>
                 <button onClick={fetchScraperAccount} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium hover:bg-muted transition-colors duration-200" data-testid="refresh-account">
                   <ArrowClockwise weight="bold" size={14} />Aktualisieren
@@ -379,14 +379,14 @@ export default function AdminPanel() {
                   </div>
                 )
               ) : (
-                <p className="text-sm text-muted-foreground" data-testid="account-not-configured">Kein ScraperAPI-Key konfiguriert.</p>
+                <p className="text-sm text-muted-foreground" data-testid="account-not-configured">Kein Scrapfly-Key konfiguriert.</p>
               )}
 
               {/* Change API key */}
               <form onSubmit={handleUpdateApiKey} className="mt-6 rounded-xl bg-secondary/60 border border-border/60 p-5" data-testid="apikey-form">
                 <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-3 flex items-center gap-1.5"><Key weight="bold" size={14} />API-Key ändern (bei Limit-Erschöpfung)</h3>
                 <div className="flex gap-2">
-                  <Input type="text" value={newApiKey} onChange={(e) => setNewApiKey(e.target.value)} placeholder="Neuer ScraperAPI-Key" className="h-11 rounded-xl bg-background text-sm focus-visible:ring-2 focus-visible:ring-primary" data-testid="new-apikey-input" />
+                  <Input type="text" value={newApiKey} onChange={(e) => setNewApiKey(e.target.value)} placeholder="Neuer Scrapfly-Key" className="h-11 rounded-xl bg-background text-sm focus-visible:ring-2 focus-visible:ring-primary" data-testid="new-apikey-input" />
                   <button type="submit" className="px-5 h-11 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:brightness-105 transition-[filter] duration-200 whitespace-nowrap" data-testid="save-apikey">Speichern</button>
                 </div>
               </form>

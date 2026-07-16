@@ -84,3 +84,10 @@
 - notify_new_apartments() винесено як спільну функцію (email+push) для обох сканів
 - Адмінка перероблена на 3 вкладки: Benutzer / immomio-URLs / Immowelt & ScraperAPI (лічильник кредитів + прогрес-бар + зміна ключа)
 - ⚠️ ВАЖЛИВО: безкоштовний тариф ScraperAPI НЕ включає premium/ultra_premium проксі, потрібні для DataDome immowelt (free tier → 403/500). Потрібен платний тариф.
+
+## CHANGELOG — Switched to Scrapfly (2026-07-16)
+- Замінено ScraperAPI → Scrapfly (ключ у .env SCRAPFLY_KEY + DB app_settings 'scrapfly_key', редаг. з адмінки)
+- _scrapfly_fetch(asp=true, country=de) обходить DataDome. Endpoints: GET /admin/scrapfly/account, PUT /admin/scrapfly/key
+- Адмінка вкладка "Immowelt & Scrapfly": лічильник (used/limit/remaining), прогрес, зміна ключа
+- ✅ Перевірено E2E: профіль SAGA → 1 Wohnung (skip Büro/Restaurant) → detail → immomio apply → published (523€, SAGA). Кожен ASP-запит ~25 кредитів.
+- Інтервал immowelt = 60 хв (free 1000 кредитів ≈ 40 запитів/міс — тріал лише для тесту, для постійного моніторингу потрібен платний тариф)
